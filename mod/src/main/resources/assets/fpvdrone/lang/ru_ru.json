@@ -6,5 +6,6 @@
   "key.fpvdrone.settings": "Настройки FPV Drone",
   "key.fpvdrone.view": "Вид: я / дрон",
   "key.fpvdrone.controller": "Настройка пульта (осей)",
-  "subtitles.fpvdrone.motor": "Жужжат моторы дрона"
+  "subtitles.fpvdrone.motor": "Жужжат моторы дрона",
+  "key.fpvdrone.stabilization": "Стабилизация Acro / Level"
 }

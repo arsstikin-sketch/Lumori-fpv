@@ -84,7 +84,7 @@ public final class DroneSettingsScreen extends Screen {
         List<Entry> entries = this.entries(this.tab);
         int colW = Math.min(200, (this.width - 30) / 2);
         int top = 48;
-        int bottomReserve = 34;
+        int bottomReserve = this.tab == Tab.CONTROL || this.tab == Tab.CONTROLLER ? 155 : 34;
         int rows = Math.max(1, (this.height - top - bottomReserve) / 24);
         int perPage = rows * 2;
         int pages = Math.max(1, (entries.size() + perPage - 1) / perPage);
@@ -99,6 +99,9 @@ public final class DroneSettingsScreen extends Screen {
             this.addRenderableWidget(entries.get(i).create(x, y, colW));
         }
 
+        if (this.tab == Tab.CONTROL || this.tab == Tab.CONTROLLER) {
+            this.addRenderableOnly(new ControlDiagram(this.tab == Tab.CONTROLLER));
+        }
         // Низ: страницы, сброс, готово
         int by = this.height - 26;
         if (pages > 1) {
@@ -167,6 +170,27 @@ public final class DroneSettingsScreen extends Screen {
                     () -> c.idleThrottle, v -> c.idleThrottle = v, DroneSettingsScreen::pct));
             }
             case CONTROL -> {
+                list.add(cycle("Устройство", "Авто: пульт, если подключён; иначе WASD и мышь.",
+                    DroneSettings.InputMode.values(), () -> c.inputMode, v -> c.inputMode = v,
+                    v -> switch (v) { case AUTO -> "Авто"; case KEYBOARD_MOUSE -> "WASD + мышь"; case CONTROLLER -> "Пульт"; }));
+                list.add(cycle("Схема клавиатуры", "Выбор раскладки для клавиатуры и мыши.",
+                    DroneSettings.KeyboardScheme.values(), () -> c.keyboardScheme, v -> c.keyboardScheme = v,
+                    v -> switch (v) {
+                        case FPV_SWAPPED -> "FPV: A/D рыскание";
+                        case KEYBOARD_ASSIST -> "Клавиатура: поворот A/D";
+                        case SPECTATOR -> "Свободный полёт";
+                    }));
+                list.add(cycle("Стабилизация", "Acro: угловые скорости. Level: возврат к горизонту. M — переключить в полёте.",
+                    DroneSettings.Stabilization.values(), () -> c.stabilization, v -> c.stabilization = v, Enum::name));
+                list.add(info(() -> "На сервере: " + (DroneNetClient.serverStabilization == 0 ? "All" : DroneNetClient.effectiveStabilization())));
+                list.add(slider("Чувствительность мыши", "Дополнительный множитель к чувствительности Minecraft.",
+                    0.1F, 5.0F, 0.1F, () -> c.mouseSensitivity, v -> c.mouseSensitivity = v, DroneSettingsScreen::num));
+                list.add(toggle("Инверсия тангажа мыши", "Выкл: мышь вниз — нос вниз. Вкл: мышь вниз — нос вверх.",
+                    () -> c.invertMousePitch, v -> c.invertMousePitch = v));
+                list.add(slider("Скорость изменения газа", "Доля полного газа в секунду удержания W/S. Отпускание сохраняет газ.",
+                    0.05F, 2.0F, 0.05F, () -> c.keyboardThrottleSpeed, v -> c.keyboardThrottleSpeed = v, DroneSettingsScreen::num));
+                list.add(slider("Угол наклона Level", "Предельный заданный наклон по крену и тангажу.",
+                    10F, 70F, 1F, () -> c.levelMaxAngle, v -> c.levelMaxAngle = v, v -> Math.round(v) + "°"));
                 list.add(slider("Интенсивность управления", "Общий множитель скорости вращения поверх рейтов. 1 = как в рейтах.",
                     0.3F, 2.0F, 0.05F, () -> c.controlIntensity, v -> c.controlIntensity = v, v -> String.format(Locale.ROOT, "x%.2f", v)));
                 list.add(slider("Плавность управления", "Сглаживание стиков: 0 = мгновенный отклик, больше = мягче и плавнее.",
@@ -203,19 +227,26 @@ public final class DroneSettingsScreen extends Screen {
                 list.add(cycle("Когда дрон разбит", "Новый дрон на старте или возврат к игроку.",
                     DroneSettings.CrashAction.values(), () -> c.crashAction, v -> c.crashAction = v,
                     v -> v == DroneSettings.CrashAction.RESPAWN ? "новый на старте" : "к игроку"));
-                list.add(slider("Прочность", "1 = обычная, 2 = ломается вдвое меньше.", 0.25F, 4.0F, 0.05F,
-                    () -> c.durability, v -> c.durability = v, v -> String.format(Locale.ROOT, "x%.2f", v)));
+                list.add(slider("Прочность", "Крайнее положение: неуничтожаемый дрон.", 0.25F, 4.0F, 0.05F,
+                    () -> DroneNetClient.durability(c), v -> c.durability = v,
+                    v -> v >= 4.0F ? "∞" : String.format(Locale.ROOT, "x%.2f", v),
+                    () -> DroneNetClient.serverDurability > 0));
                 list.add(slider("Безопасное касание", "Удары медленнее этой скорости ничего не ломают.", 0.5F, 6.0F, 0.1F,
-                    () -> c.bumpSpeed, v -> c.bumpSpeed = v, DroneSettingsScreen::mps));
+                    () -> DroneNetClient.bumpSpeed(c), v -> c.bumpSpeed = v, DroneSettingsScreen::mps,
+                    () -> DroneNetClient.serverBumpSpeed > 0));
                 list.add(slider("Поломка пропеллера", "Прямой удар с этой скоростью ломает пропеллер.", 3.0F, 25.0F, 0.5F,
-                    () -> c.propBreakSpeed, v -> c.propBreakSpeed = v, DroneSettingsScreen::mps));
+                    () -> DroneNetClient.propBreakSpeed(c), v -> c.propBreakSpeed = v, DroneSettingsScreen::mps,
+                    () -> DroneNetClient.serverPropBreakSpeed > 0));
                 list.add(slider("Поломка луча/мотора", "", 6.0F, 40.0F, 0.5F,
-                    () -> c.armBreakSpeed, v -> c.armBreakSpeed = v, DroneSettingsScreen::mps));
+                    () -> DroneNetClient.armBreakSpeed(c), v -> c.armBreakSpeed = v, DroneSettingsScreen::mps,
+                    () -> DroneNetClient.serverArmBreakSpeed > 0));
                 list.add(slider("Разрушение рамы", "Дрон разбит полностью.", 10.0F, 60.0F, 0.5F,
-                    () -> c.frameBreakSpeed, v -> c.frameBreakSpeed = v, DroneSettingsScreen::mps));
+                    () -> DroneNetClient.frameBreakSpeed(c), v -> c.frameBreakSpeed = v, DroneSettingsScreen::mps,
+                    () -> DroneNetClient.serverFrameBreakSpeed > 0));
                 list.add(slider("Отскок", "Насколько дрон отскакивает от стен.", 0.0F, 0.8F, 0.05F,
                     () -> c.bounciness, v -> c.bounciness = v, DroneSettingsScreen::num));
-                list.add(toggle("Вода и лава убивают дрон", "", () -> c.liquidsDestroy, v -> c.liquidsDestroy = v));
+                list.add(toggle("Вода и лава убивают дрон", "", () -> DroneNetClient.liquidsDestroy(c),
+                    v -> c.liquidsDestroy = v, () -> DroneNetClient.serverLiquidsDestroy != -1));
             }
             case LOOK -> {
                 list.add(color("Рама", () -> c.colorFrame, v -> c.colorFrame = v));
@@ -234,14 +265,10 @@ public final class DroneSettingsScreen extends Screen {
                 list.add(toggle("Прятать интерфейс Minecraft", "Хотбар, прицел, здоровье в полёте.", () -> c.hideVanillaHud, v -> c.hideVanillaHud = v));
                 list.add(slider("Громкость моторов", "0 = без звука.", 0.0F, 1.0F, 0.05F,
                     () -> c.motorVolume, v -> c.motorVolume = v, DroneSettingsScreen::pct));
-                list.add(slider("Дальность (без сервера)", "Сколько блоков можно улететь от игрока. На сервере с модом/плагином действует дальность сервера.",
-                    0.0F, 512.0F, 8.0F, () -> c.localMaxRange, v -> c.localMaxRange = v,
-                    v -> v <= 0.0F ? "только чанки" : Math.round(v) + " бл."));
-                list.add(info(() -> {
-                    float r = DroneNetClient.effectiveMaxRange();
-                    return r > 0.0F ? "Сейчас действует: " + Math.round(r) + " блоков" + (DroneNetClient.serverHasSupport ? " (сервер)" : "")
-                        : "Сейчас: до границы загруженных чанков";
-                }));
+                list.add(slider("Дальность", "Максимальное расстояние от игрока, до 512 блоков.",
+                    8.0F, 512.0F, 8.0F, () -> DroneNetClient.effectiveMaxRange(), v -> c.localMaxRange = v,
+                    v -> Math.round(v) + " бл.",
+                    () -> DroneNetClient.serverHasSupport && DroneNetClient.serverMaxRange > 0));
             }
         }
         return list;
@@ -274,6 +301,13 @@ public final class DroneSettingsScreen extends Screen {
                 c.idleThrottle = d.idleThrottle;
             }
             case CONTROL -> {
+                c.inputMode = d.inputMode;
+                c.keyboardScheme = d.keyboardScheme;
+                c.stabilization = d.stabilization;
+                c.mouseSensitivity = d.mouseSensitivity;
+                c.invertMousePitch = d.invertMousePitch;
+                c.keyboardThrottleSpeed = d.keyboardThrottleSpeed;
+                c.levelMaxAngle = d.levelMaxAngle;
                 c.controlIntensity = d.controlIntensity;
                 c.controlSmoothing = d.controlSmoothing;
                 c.cameraAngle = d.cameraAngle;
@@ -326,11 +360,20 @@ public final class DroneSettingsScreen extends Screen {
 
     private static Entry slider(String name, String tip, float min, float max, float step, Supplier<Float> get, Consumer<Float> set,
                                 Function<Float, String> fmt) {
+        return slider(name, tip, min, max, step, get, set, fmt, () -> false);
+    }
+
+    private static Entry slider(String name, String tip, float min, float max, float step, Supplier<Float> get, Consumer<Float> set,
+                                Function<Float, String> fmt, java.util.function.BooleanSupplier locked) {
         return (x, y, w) -> {
-            FloatSlider s = new FloatSlider(x, y, w, 20, name, min, max, step, get, v -> {
-                set.accept(v);
-                FpvDroneClient.SETTINGS.markDirty();
+            FloatSlider s = new FloatSlider(x, y, w, 20, name, locked.getAsBoolean() ? Math.min(min, get.get()) : min,
+                locked.getAsBoolean() ? Math.max(max, get.get()) : max, step, get, v -> {
+                if (!locked.getAsBoolean()) {
+                    set.accept(v);
+                    FpvDroneClient.SETTINGS.markDirty();
+                }
             }, fmt);
+            s.active = !locked.getAsBoolean();
             if (!tip.isEmpty()) {
                 s.setTooltip(Tooltip.create(Component.literal(tip)));
             }
@@ -339,12 +382,19 @@ public final class DroneSettingsScreen extends Screen {
     }
 
     private static Entry toggle(String name, String tip, Supplier<Boolean> get, Consumer<Boolean> set) {
+        return toggle(name, tip, get, set, () -> false);
+    }
+
+    private static Entry toggle(String name, String tip, Supplier<Boolean> get, Consumer<Boolean> set,
+                                java.util.function.BooleanSupplier locked) {
         return (x, y, w) -> {
             Button b = Button.builder(Component.literal(name + ": " + (get.get() ? "Да" : "Нет")), btn -> {
+                if (locked.getAsBoolean()) return;
                 set.accept(!get.get());
                 FpvDroneClient.SETTINGS.markDirty();
                 btn.setMessage(Component.literal(name + ": " + (get.get() ? "Да" : "Нет")));
             }).bounds(x, y, w, 20).build();
+            b.active = !locked.getAsBoolean();
             if (!tip.isEmpty()) {
                 b.setTooltip(Tooltip.create(Component.literal(tip)));
             }
@@ -388,6 +438,7 @@ public final class DroneSettingsScreen extends Screen {
         };
     }
 
+    private String lockSignature = "";
     private final List<StringWidget> infoWidgets = new ArrayList<>();
     private final List<Supplier<String>> infoTexts = new ArrayList<>();
 
@@ -404,6 +455,14 @@ public final class DroneSettingsScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
+        String next = DroneNetClient.serverMaxRange + ":" + DroneNetClient.serverDurability + ":"
+            + DroneNetClient.serverBumpSpeed + ":" + DroneNetClient.serverPropBreakSpeed + ":"
+            + DroneNetClient.serverArmBreakSpeed + ":" + DroneNetClient.serverFrameBreakSpeed + ":"
+            + DroneNetClient.serverLiquidsDestroy;
+        if (!next.equals(this.lockSignature)) {
+            this.lockSignature = next;
+            this.init();
+        }
         for (int i = 0; i < this.infoWidgets.size(); i++) {
             this.infoWidgets.get(i).setMessage(Component.literal(this.infoTexts.get(i).get()));
         }

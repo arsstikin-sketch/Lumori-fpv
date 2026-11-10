@@ -37,6 +37,8 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
 
     // Настройки из config.yml
     private float maxRange;
+    private final float[] fixedDamage = new float[5];
+    private byte fixedLiquids = -1;
     private float modelScale;
     private float viewRange;
     private int timeoutTicks;
@@ -55,6 +57,7 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
     private boolean trailVisibleToPilot;
 
     // Скины мобов
+    private int stabilizationPolicy;
     private boolean skinsEnabled;
     private final boolean entityMode = true;   // ресурспаков больше нет: только настоящие мобы и птицы
     private double predictionTicks;
@@ -112,13 +115,14 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
         // Догрузка скинов голов: сама стартует через 10 с после запуска, сторож раз в минуту перезапускает зависшую.
         this.getServer().getScheduler().runTaskLater(this, () -> this.autoUpload(false), 200L);
         this.getServer().getScheduler().runTaskTimer(this, () -> this.autoUpload(true), 1200L, 1200L);
-        this.getLogger().info("FPV Drone включён. Дальность: " + (this.maxRange > 0 ? this.maxRange + " блоков" : "без ограничения"));
+        this.getLogger().info("FPV Drone включён. Дальность: " + (this.maxRange > 0 ? this.maxRange + " блоков" : "выбор игрока (до 512 блоков)"));
     }
 
     @Override
     public void onDisable() {
         this.birdHeads.stop();
         this.headPreloader.stopAll();
+        this.adminPanel.closeAll();
         this.skinMenus.closeAll();
         for (PilotSession session : this.sessions.values()) {
             session.removeAll();
@@ -132,7 +136,16 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
 
     void loadSettings() {
         this.reloadConfig();
-        this.maxRange = (float) Math.max(0.0, this.getConfig().getDouble("max-range", 128.0));
+        this.maxRange = (float) Math.max(0.0, this.getConfig().getDouble("max-range", 0.0));
+        String[] paths = {"durability", "safe-contact", "propeller-break", "motor-break", "frame-destroy"};
+        for (int i = 0; i < paths.length; i++) {
+            double value = this.getConfig().getDouble("damage." + paths[i], 0.0);
+            this.fixedDamage[i] = Double.isFinite(value) && value > 0 ? (float) Math.min(1000, value) : 0;
+        }
+        String liquid = this.getConfig().getString("damage.liquids-destroy", "client");
+        this.fixedLiquids = switch (liquid == null ? "" : liquid.toLowerCase(java.util.Locale.ROOT)) {
+            case "true" -> 1; case "false" -> 0; default -> -1;
+        };
         this.modelScale = (float) Math.max(0.3, Math.min(5.0, this.getConfig().getDouble("model-scale", 1.5)));
         this.viewRange = (float) Math.max(0.2, Math.min(10.0, this.getConfig().getDouble("view-range", 2.0)));
         this.timeoutTicks = Math.max(5, this.getConfig().getInt("timeout-ticks", 40));
@@ -151,6 +164,12 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
         this.trailSeconds = (float) Math.max(0.5, Math.min(30.0, this.getConfig().getDouble("trail.seconds", 3.0)));
         this.trailWidth = (float) Math.max(0.01, Math.min(0.5, this.getConfig().getDouble("trail.width", 0.06)));
         this.trailVisibleToPilot = this.getConfig().getBoolean("trail.visible-to-pilot", true);
+        String stabilization = this.getConfig().getString("stabilization.allowed", "All");
+        this.stabilizationPolicy = switch (stabilization.toLowerCase(java.util.Locale.ROOT)) {
+            case "acro" -> 1;
+            case "level" -> 2;
+            default -> 0;
+        };
         this.skinsEnabled = this.getConfig().getBoolean("skins.enabled", true);
         this.predictionTicks = Math.max(0.0, Math.min(6.0, this.getConfig().getDouble("prediction-ticks",
             3.0)));
@@ -314,6 +333,17 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
 
     // ---------------------------------------------------------------- панель /flyskin admin
 
+    String stabilizationLabel() {
+        return switch (this.stabilizationPolicy) { case 1 -> "Acro"; case 2 -> "Level"; default -> "All"; };
+    }
+
+    void cycleStabilization() {
+        this.stabilizationPolicy = (this.stabilizationPolicy + 1) % 3;
+        this.getConfig().set("stabilization.allowed", this.stabilizationLabel());
+        this.saveConfig();
+        for (Player player : this.getServer().getOnlinePlayers()) this.sendConfig(player);
+    }
+
     AdminPanel adminPanel() {
         return this.adminPanel;
     }
@@ -324,9 +354,12 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
     }
 
     String defaultSkinId() {
-        String d = this.defaultSkin == null ? "" : this.defaultSkin;
-        int i = d.indexOf(':');
-        return (i >= 0 ? d.substring(0, i) : d).trim();
+        SkinCatalog.Variant configured = this.parseSkin(this.defaultSkin);
+        if (configured != null) return configured.mob.id;
+        for (SkinCatalog.Mob mob : this.allMobs()) {
+            if (mob.bird != null || MobEntities.supports(mob)) return mob.id;
+        }
+        return "phantom";
     }
 
     private void applySizes() {
@@ -337,12 +370,30 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
     }
 
     /** Галочка или размер поменялись в панели: применить сразу ко всем летающим. */
-    void applyAdminSettings() {
+    void applyAdminSettings(java.util.Set<String> affected) {
+        this.skinMenus.closeAll();
         this.applySizes();
         for (PilotSession session : this.sessions.values()) {
-            session.removeVisual();
-            session.dirty = true;
+            Player player = this.getServer().getPlayer(session.playerId);
+            if (player != null && this.skinAffected(player, affected)) {
+                session.removeVisual();
+                session.dirty = true;
+            }
         }
+        if (this.testDrone != null) {
+            Player player = this.getServer().getPlayer(this.testDrone.owner());
+            if (player != null && this.skinAffected(player, affected)) {
+                int left = this.testDrone.ticksLeft();
+                this.testDrone.remove();
+                this.testDrone = new TestDrone(this, player, left);
+            }
+        }
+    }
+
+    private boolean skinAffected(Player player, java.util.Set<String> affected) {
+        SkinCatalog.Variant stored = this.parseSkin(player.getPersistentDataContainer().get(this.skinKey, PersistentDataType.STRING));
+        return (stored != null && affected.contains(stored.mob.id.toLowerCase(java.util.Locale.ROOT)))
+            || affected.contains(this.skinOf(player).mob.id.toLowerCase(java.util.Locale.ROOT));
     }
 
     /** Скины голов догрузились — пересоздать птиц не чаще раза в 10 секунд (иначе модель «мигает»). */
@@ -426,6 +477,7 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
     }
 
     void reloadAll() {
+        this.adminPanel.closeAll();
         this.skinMenus.closeAll();
         this.loadSettings();
         this.buildSkins();
@@ -482,6 +534,17 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
             session.removeVisual();
             return;
         }
+        if (this.stabilizationPolicy != 0 && (!state.modeReported
+                || state.levelMode != (this.stabilizationPolicy == 2))) {
+            session.state = null;
+            session.removeVisual();
+            if (session.rejected++ % 100 == 0) {
+                this.sendConfig(player);
+                player.sendMessage(net.kyori.adventure.text.Component.text("FPV Drone: сервер разрешает только "
+                    + (this.stabilizationPolicy == 1 ? "Acro" : "Level") + ". Обновите мод до 0.5.0."));
+            }
+            return;
+        }
         if (!this.isPlausible(player, state)) {
             session.rejected++;
             if (this.logRejected && session.rejected % 100 == 1) {
@@ -512,7 +575,7 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
     }
 
     private void sendConfig(Player player) {
-        player.sendPluginMessage(this, CHANNEL_CONFIG, DroneState.encodeConfig(this.maxRange));
+        player.sendPluginMessage(this, CHANNEL_CONFIG, DroneState.encodeConfig(this.maxRange, this.stabilizationPolicy, this.fixedDamage, this.fixedLiquids));
     }
 
     /** Дрон должен быть рядом с игроком и в загруженных чанках. */
@@ -523,7 +586,7 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
         double dy = state.y - eye.getY();
         double dz = state.z - eye.getZ();
         double distSq = dx * dx + dy * dy + dz * dz;
-        double limit = this.maxRange > 0.0F ? this.maxRange + 16.0 : world.getViewDistance() * 16.0 + 32.0;
+        double limit = this.maxRange > 0.0F ? this.maxRange + 16.0 : 528.0;
         if (distSq > limit * limit) {
             return false;
         }
@@ -690,6 +753,7 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
         }
         if (v == null) {
             v = this.parseSkin(this.defaultSkin);
+            if (v == null) v = this.parseSkin(this.defaultSkinId());
         }
         if (v == null) {
             java.util.List<SkinCatalog.Mob> menu = this.menuMobs();

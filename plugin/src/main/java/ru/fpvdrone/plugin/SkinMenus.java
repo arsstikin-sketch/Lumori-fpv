@@ -39,9 +39,14 @@ final class SkinMenus implements Listener {
         return this.open.containsKey(player.getUniqueId());
     }
 
+    void diagnose(Player player) {
+        SkinMenu menu = this.open.get(player.getUniqueId());
+        if (menu != null) menu.diagnose();
+    }
+
     void open(Player player) {
         this.close(player, false);
-        SkinMenu menu = new SkinMenu(this.plugin, this.plugin.catalog(), player, this.plugin.skinOf(player));
+        SkinMenu menu = new SkinMenu(this.plugin, player, this.plugin.skinOf(player));
         Input input = player.getCurrentInput();
         menu.lastLeft = input.isLeft();
         menu.lastRight = input.isRight();
@@ -187,7 +192,8 @@ final class SkinMenus implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onTeleport(PlayerTeleportEvent event) {
-        if (this.open.containsKey(event.getPlayer().getUniqueId()) && event.getFrom().distanceSquared(event.getTo()) > 1.0) {
+        if (this.open.containsKey(event.getPlayer().getUniqueId()) && (!event.getFrom().getWorld().equals(event.getTo().getWorld())
+                || event.getFrom().distanceSquared(event.getTo()) > 1.0)) {
             this.close(event.getPlayer(), true);
         }
     }

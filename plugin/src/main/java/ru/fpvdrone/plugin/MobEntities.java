@@ -2,7 +2,7 @@ package ru.fpvdrone.plugin;
 
 import java.util.Locale;
 import java.util.function.Consumer;
-import net.kyori.adventure.text.Component;
+import net.kyori.adventure.util.TriState;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -29,7 +29,7 @@ import org.bukkit.inventory.ItemStack;
 /**
  * Настоящие мобы как скин (без ресурспака): без ИИ, бессмертные, без звука и гравитации.
  * Поворот — рысканием, наклон — тангажом (фантом наклоняется всем телом, остальные — головой),
- * полёт вверх ногами — именем «Dinnerbone» (так игра переворачивает любого моба).
+ * Крен не имитируется: ванильные мобы сохраняют своё имя и вертикальную ориентацию.
  */
 final class MobEntities {
     static final String TAG = "fpvdrone_skin";
@@ -74,6 +74,9 @@ final class MobEntities {
             ent.setSilent(true);
             ent.setInvulnerable(true);
             ent.setGravity(false);
+            ent.setNoPhysics(true);
+            ent.setInvisible(false);
+            ent.setCustomNameVisible(false);
             ent.addScoreboardTag(TAG);
             if (ent instanceof LivingEntity living) {
                 living.setAI(false);
@@ -83,6 +86,7 @@ final class MobEntities {
             }
             if (ent instanceof Mob mob) {
                 mob.setAware(false);
+                mob.setDespawnInPeacefulOverride(TriState.FALSE);
             }
             applyVariant(ent, v);
             if (ent instanceof LivingEntity living) {
@@ -164,19 +168,14 @@ final class MobEntities {
      * @param yaw   рыскание Minecraft, градусы
      * @param pitch тангаж Minecraft (+ — нос вниз), градусы
      */
-    static void pose(LivingEntity e, World world, double x, double y, double z, float yaw, float pitch, boolean upsideDown) {
+    static void pose(LivingEntity e, World world, double x, double y, double z, float yaw, float pitch) {
         double half = e.getHeight() / 2.0;
-        Location at = new Location(world, x, y - half, z, yaw, upsideDown ? -pitch : pitch);
+        Location at = new Location(world, x, y - half, z, yaw, pitch);
         e.teleport(at);
         e.setBodyYaw(yaw);
-        boolean flipped = e.customName() != null;
-        if (flipped != upsideDown) {
-            e.customName(upsideDown ? Component.text("Dinnerbone") : null);
-            e.setCustomNameVisible(false);
-        }
     }
 
-    /** Рыскание/тангаж/«вверх ногами» из кватерниона дрона (+Z вперёд, +Y вверх). */
+    /** Рыскание/тангаж из кватерниона дрона (+Z вперёд, +Y вверх). */
     static float[] angles(DroneState s) {
         Mat4 r = Mat4.rotation(s.qx, s.qy, s.qz, s.qw);
         double[] f = r.transformDirection(0, 0, 1);
@@ -193,7 +192,6 @@ final class MobEntities {
         }
         float yaw = (float) Math.toDegrees(yawRad);
         float pitch = (float) Math.toDegrees(-Math.asin(Math.max(-1.0, Math.min(1.0, f[1]))));
-        float up = u[1] < 0 ? 1.0F : 0.0F;
-        return new float[] {yaw, pitch, up};
+        return new float[] {yaw, pitch};
     }
 }

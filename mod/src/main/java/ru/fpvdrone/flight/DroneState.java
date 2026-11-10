@@ -7,6 +7,11 @@ import org.joml.Quaternionf;
  * Локальные оси дрона: +Z вперёд, +Y вверх, +X влево.
  */
 public final class DroneState {
+    public boolean levelMode;
+    public boolean keyboardSmartSteering;
+    public boolean spectatorMode;
+    public double spectatorWishX, spectatorWishY, spectatorWishZ;
+    final LevelStabilizer stabilizer = new LevelStabilizer();
     public double x;
     public double y;
     public double z;
@@ -16,6 +21,7 @@ public final class DroneState {
     public double vx;
     public double vy;
     public double vz;
+    final org.joml.Vector3f thrustDirection = new org.joml.Vector3f();
     public final Quaternionf orientation = new Quaternionf();
     public final Quaternionf prevOrientation = new Quaternionf();
 

@@ -22,6 +22,17 @@ public final class DroneSettings {
 
     // ------------------------------------------------------------------ пульт (общее)
     /** Выбранный пульт (имя устройства). Пусто = первый найденный. */
+    public enum InputMode { AUTO, KEYBOARD_MOUSE, CONTROLLER }
+    public enum Stabilization { ACRO, LEVEL }
+    public enum KeyboardScheme { FPV_SWAPPED, KEYBOARD_ASSIST, SPECTATOR }
+    public InputMode inputMode = InputMode.AUTO;
+    public KeyboardScheme keyboardScheme = KeyboardScheme.FPV_SWAPPED;
+    public Stabilization stabilization = Stabilization.ACRO;
+    public float mouseSensitivity = 1.0F;
+    public boolean invertMousePitch = false;
+    public float keyboardThrottleSpeed = 0.35F;
+    public float levelMaxAngle = 45.0F;
+
     public String controllerName = "";
     public boolean armRequiresLowThrottle = true;
     public boolean armSwitchLaunches = true;
@@ -89,7 +100,7 @@ public final class DroneSettings {
     public float motorVolume = 0.8F;
 
     // ------------------------------------------------------------------ дальность
-    public float localMaxRange = 0.0F;
+    public float localMaxRange = 512.0F;
 
     private transient Path path;
     private transient boolean dirty;
@@ -269,7 +280,7 @@ public final class DroneSettings {
                 field.set(target, Enum.valueOf((Class<Enum>) type, raw.toUpperCase(Locale.ROOT)));
             }
         } catch (IllegalArgumentException | IllegalAccessException ignored) {
-            // кривое значение — по умолчанию
+            // старые значения схемы и некорректные поля — по умолчанию
         }
     }
 
@@ -293,6 +304,9 @@ public final class DroneSettings {
                 // public
             }
         }
+        this.mouseSensitivity = clamp(this.mouseSensitivity, 0.1F, 5.0F);
+        this.keyboardThrottleSpeed = clamp(this.keyboardThrottleSpeed, 0.05F, 2.0F);
+        this.levelMaxAngle = clamp(this.levelMaxAngle, 10.0F, 70.0F);
         this.rcRateRollPitch = clamp(this.rcRateRollPitch, 0.1F, 2.55F);
         this.superRateRollPitch = clamp(this.superRateRollPitch, 0.0F, 0.95F);
         this.expoRollPitch = clamp(this.expoRollPitch, 0.0F, 1.0F);
@@ -321,7 +335,8 @@ public final class DroneSettings {
         this.armBreakSpeed = clamp(this.armBreakSpeed, this.propBreakSpeed + 0.5F, 40.0F);
         this.frameBreakSpeed = clamp(this.frameBreakSpeed, this.armBreakSpeed + 0.5F, 60.0F);
         this.bounciness = clamp(this.bounciness, 0.0F, 0.8F);
-        this.localMaxRange = clamp(this.localMaxRange, 0.0F, 1024.0F);
+        // Старое значение 0 означало полёт по загруженным чанкам; теперь верхний предел явный.
+        this.localMaxRange = this.localMaxRange <= 0.0F ? 512.0F : clamp(this.localMaxRange, 8.0F, 512.0F);
     }
 
     private static final DroneSettings DEFAULTS = new DroneSettings();

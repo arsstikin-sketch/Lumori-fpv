@@ -50,6 +50,21 @@ public final class DronePhysics {
             return Result.DESTROYED;
         }
 
+        double thrust = 0.0;
+        Vector3f up = s.thrustDirection.set(0, 1, 0);
+        if (s.spectatorMode && s.armed) {
+            // Velocity controller with bounded acceleration; collision and range checks below still apply.
+            double desiredX = s.spectatorWishX * 10.0;
+            double desiredY = s.spectatorWishY * 10.0;
+            double desiredZ = s.spectatorWishZ * 10.0;
+            double diffX = desiredX - s.vx, diffY = desiredY - s.vy, diffZ = desiredZ - s.vz;
+            double diff = Math.sqrt(diffX * diffX + diffY * diffY + diffZ * diffZ);
+            double step = 20.0 * dt;
+            double k = diff > step ? step / diff : 1.0;
+            s.vx += diffX * k; s.vy += diffY * k; s.vz += diffZ * k;
+            s.motor += (0.5F - s.motor) * (float) (1.0 - Math.exp(-dt / cfg.motorResponse));
+            s.rollRate = s.pitchRate = s.yawRate = 0;
+        } else {
         // ---------------- плавность управления: сглаживание стиков
         float smooth = cfg.controlSmoothing <= 0.001F ? 1.0F : (float) (1.0 - Math.exp(-dt / (cfg.controlSmoothing * 0.15)));
         s.smoothRoll += (sticks.roll() - s.smoothRoll) * smooth;
@@ -63,6 +78,15 @@ public final class DronePhysics {
             float targetRoll = intensity * Rates.degreesPerSecond(s.smoothRoll, cfg.rcRateRollPitch, cfg.superRateRollPitch, cfg.expoRollPitch);
             float targetPitch = intensity * Rates.degreesPerSecond(s.smoothPitch, cfg.rcRateRollPitch, cfg.superRateRollPitch, cfg.expoRollPitch);
             float targetYaw = intensity * Rates.degreesPerSecond(s.smoothYaw, cfg.rcRateYaw, cfg.superRateYaw, cfg.expoYaw);
+            if (s.keyboardSmartSteering && !s.levelMode) {
+                // Acro keeps manual pitch; roll is held at a speed-dependent bank angle.
+                targetRoll = s.stabilizer.rates(s.orientation, 0, s.smoothRoll, cfg.levelMaxAngle).z;
+            }
+            if (s.levelMode) {
+                Vector3f rates = s.stabilizer.rates(s.orientation, s.smoothPitch, s.smoothRoll, cfg.levelMaxAngle);
+                targetPitch = rates.x;
+                targetRoll = rates.z;
+            }
             float k = (float) (1.0 - Math.exp(-dt / cfg.rateResponse));
             s.rollRate += (targetRoll - s.rollRate) * k;
             s.pitchRate += (targetPitch - s.pitchRate) * k;
@@ -90,8 +114,8 @@ public final class DronePhysics {
         s.motor += (target - s.motor) * (float) (1.0 - Math.exp(-dt / cfg.motorResponse));
         double m = s.motor;
         double curve = cfg.thrustCurve;
-        double thrust = cfg.gravity * cfg.thrustToWeight * ((1.0 - curve) * m + curve * m * m) * damage.thrustScale();
-        Vector3f up = new Vector3f(0.0F, 1.0F, 0.0F);
+        thrust = cfg.gravity * cfg.thrustToWeight * ((1.0 - curve) * m + curve * m * m) * damage.thrustScale();
+        up.set(0.0F, 1.0F, 0.0F);
         s.orientation.transform(up);
 
         double speed = s.speed();
@@ -105,6 +129,7 @@ public final class DronePhysics {
         s.vx += ax * dt;
         s.vy += ay * dt;
         s.vz += az * dt;
+        }
 
         // ---------------- перемещение со столкновениями
         double dx = s.vx * dt;
@@ -118,7 +143,7 @@ public final class DronePhysics {
         s.onGround = by < -1.0E-7;
         if (Math.abs(bx) > 1.0E-7 || Math.abs(by) > 1.0E-7 || Math.abs(bz) > 1.0E-7) {
             DamageModel.onCollision(s, damage, cfg, bx, by, bz);
-            if (s.onGround) {
+            if (s.onGround && !(s.spectatorMode && s.armed)) {
                 applyGroundFriction(s, thrust, up, cfg.gravity);
             }
             if (damage.isDestroyed()) {
@@ -154,7 +179,8 @@ public final class DronePhysics {
         s.z = nz;
 
         // ---------------- жидкости
-        if (cfg.liquidsDestroy && !level.getFluidState(center).isEmpty()) {
+        if (ru.fpvdrone.net.DroneNetClient.durability(cfg) < 4.0F
+            && ru.fpvdrone.net.DroneNetClient.liquidsDestroy(cfg) && !level.getFluidState(center).isEmpty()) {
             damage.camera = 0.0F;
             s.destroyed = true;
             s.armed = false;

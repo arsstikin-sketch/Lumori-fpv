@@ -29,6 +29,16 @@ public final class DroneController {
     public final DroneState state = new DroneState();
     public final DroneDamage damage = new DroneDamage();
 
+    private final ru.fpvdrone.input.KeyboardMouseInput keyboard = new ru.fpvdrone.input.KeyboardMouseInput();
+    private boolean keyboardMode;
+    private DroneSettings.KeyboardScheme lastKeyboardScheme;
+    private long lastInputNanos;
+    private boolean modeKeyPrev;
+
+    public void mouseMotion(double dx, double dy) {
+        if (keyboardMode && Minecraft.getInstance().gui.screen() == null) keyboard.mouse(dx, dy);
+    }
+
     private boolean active;
     private boolean viewingDrone;
     private long lastFrameNanos;
@@ -108,6 +118,41 @@ public final class DroneController {
 
         this.sticks = StickInput.read(cfg.controllerName, FpvDroneClient.PROFILES);
         this.watchController();
+        boolean useKeyboard = cfg.inputMode == DroneSettings.InputMode.KEYBOARD_MOUSE
+            || (cfg.inputMode == DroneSettings.InputMode.AUTO && !this.sticks.connected());
+        long inputNow = System.nanoTime();
+        double inputDt = this.lastInputNanos == 0 ? 0 : (inputNow - this.lastInputNanos) / 1.0E9;
+        this.lastInputNanos = inputNow;
+        if (this.keyboardMode != useKeyboard || this.lastKeyboardScheme != cfg.keyboardScheme) {
+            this.keyboard.reset();
+            this.state.armed = false;
+        }
+        this.keyboardMode = useKeyboard;
+        this.lastKeyboardScheme = cfg.keyboardScheme;
+        this.state.keyboardSmartSteering = useKeyboard && cfg.keyboardScheme == DroneSettings.KeyboardScheme.KEYBOARD_ASSIST;
+        this.state.spectatorMode = useKeyboard && cfg.keyboardScheme == DroneSettings.KeyboardScheme.SPECTATOR;
+        boolean controls = this.isViewingDrone() && minecraft.gui.screen() == null && minecraft.isWindowActive();
+        if (useKeyboard) {
+            if (!controls) this.keyboard.reset();
+            this.sticks = this.keyboard.sample(inputDt,
+                controls && minecraft.options.keyUp.isDown(), controls && minecraft.options.keyDown.isDown(),
+                controls && minecraft.options.keyLeft.isDown(), controls && minecraft.options.keyRight.isDown(),
+                controls && minecraft.options.keyJump.isDown(), controls && minecraft.options.keyShift.isDown(),
+                cfg.keyboardThrottleSpeed, cfg.mouseSensitivity, cfg.invertMousePitch,
+                cfg.keyboardScheme, this.state.speed());
+            if (this.state.spectatorMode && controls) {
+                this.keyboard.spectator(this.state,
+                    minecraft.options.keyUp.isDown(), minecraft.options.keyDown.isDown(),
+                    minecraft.options.keyLeft.isDown(), minecraft.options.keyRight.isDown(),
+                    minecraft.options.keyJump.isDown(), minecraft.options.keyShift.isDown(),
+                    cfg.mouseSensitivity, cfg.invertMousePitch);
+            }
+        }
+        if (this.isViewingDrone() && (!controls || !this.sticks.connected())) {
+            this.state.armed = false;
+            this.keyboard.reset();
+        }
+        this.state.levelMode = DroneNetClient.effectiveStabilization() == DroneSettings.Stabilization.LEVEL;
         this.handleInputs(minecraft, player, cfg);
 
         // Урон по игроку (или смерть) — дрон пропадает, где бы ни была камера.
@@ -184,8 +229,20 @@ public final class DroneController {
     // ------------------------------------------------------------------ управление
 
     private void handleInputs(Minecraft minecraft, LocalPlayer player, DroneSettings cfg) {
-        boolean screenOpen = minecraft.gui.screen() != null;
+        boolean screenOpen = minecraft.gui.screen() != null || !minecraft.isWindowActive();
 
+        boolean modeKey = !screenOpen && isDown(ModKeys.STABILIZATION);
+        if (modeKey && !this.modeKeyPrev) {
+            if (DroneNetClient.serverStabilization == 0) {
+                cfg.stabilization = cfg.stabilization == DroneSettings.Stabilization.ACRO
+                    ? DroneSettings.Stabilization.LEVEL : DroneSettings.Stabilization.ACRO;
+                cfg.markDirty();
+            }
+            this.state.levelMode = DroneNetClient.effectiveStabilization() == DroneSettings.Stabilization.LEVEL;
+            this.showNotice("Режим: " + DroneNetClient.effectiveStabilization()
+                + (DroneNetClient.serverStabilization == 0 ? "" : " (задан сервером)"));
+        }
+        this.modeKeyPrev = modeKey;
         boolean armKey = !screenOpen && isDown(ModKeys.ARM);
         boolean exitKey = !screenOpen && isDown(ModKeys.EXIT);
         boolean respawnKey = !screenOpen && isDown(ModKeys.RESPAWN);
@@ -288,6 +345,7 @@ public final class DroneController {
         Vec3 spawn = spawnPosition(player);
         this.state.resetAt(spawn.x, spawn.y, spawn.z, player.getYHeadRot());
         this.damage.repairAll();
+        this.keyboard.reset();
         this.active = true;
         this.viewingDrone = true;
         this.accumulator = 0.0;
@@ -323,12 +381,14 @@ public final class DroneController {
     private void respawn() {
         this.state.resetAt(this.state.launchX, this.state.launchY, this.state.launchZ, this.state.launchYaw);
         this.damage.repairAll();
+        this.keyboard.reset();
         this.accumulator = 0.0;
         this.flightStartNanos = System.nanoTime();
         this.showNotice("Новый дрон. Армить: " + ModKeys.label(ModKeys.ARM) + " / тумблер");
     }
 
     public void exit() {
+        this.keyboard.reset();
         this.active = false;
         this.viewingDrone = false;
         this.state.armed = false;
@@ -381,6 +441,7 @@ public final class DroneController {
 
     public Quaternionf renderCameraOrientation() {
         Quaternionf q = new Quaternionf(this.state.prevOrientation).slerp(this.state.orientation, this.alpha());
-        return q.rotateX((float) Math.toRadians(-FpvDroneClient.SETTINGS.cameraAngle));
+        return this.state.spectatorMode ? q
+            : q.rotateX((float) Math.toRadians(-FpvDroneClient.SETTINGS.cameraAngle));
     }
 }

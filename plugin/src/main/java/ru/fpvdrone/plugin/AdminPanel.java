@@ -21,6 +21,7 @@ import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -70,7 +71,7 @@ final class AdminPanel implements Listener {
         if (sec != null) {
             for (String id : sec.getKeys(false)) {
                 double v = sec.getDouble(id);
-                if (v > 0) {
+                if (Double.isFinite(v) && v > 0) {
                     this.sizes.put(id.toLowerCase(Locale.ROOT), clamp(v));
                 }
             }
@@ -96,7 +97,8 @@ final class AdminPanel implements Listener {
     }
 
     boolean enabled(SkinCatalog.Mob mob) {
-        return !this.disabled.contains(mob.id.toLowerCase(Locale.ROOT));
+        return mob.id.equalsIgnoreCase(this.plugin.defaultSkinId())
+            || !this.disabled.contains(mob.id.toLowerCase(Locale.ROOT));
     }
 
     /** Размер, заданный админом, или null. */
@@ -111,7 +113,13 @@ final class AdminPanel implements Listener {
     // ================================================================== окно
 
     /** Открытое окно: страница, раздел и какие скины в ячейках. */
-    private static final class Holder {
+    private static final class Holder implements InventoryHolder {
+        private Inventory inventory;
+
+        @Override
+        public Inventory getInventory() {
+            return this.inventory;
+        }
         final int page;
         final Filter filter;
         final List<SkinCatalog.Mob> shown = new ArrayList<>();
@@ -121,8 +129,6 @@ final class AdminPanel implements Listener {
             this.filter = filter;
         }
     }
-
-    private final Map<Inventory, Holder> openWindows = new java.util.IdentityHashMap<>();
 
     private List<SkinCatalog.Mob> list(Filter f) {
         List<SkinCatalog.Mob> out = new ArrayList<>();
@@ -143,7 +149,12 @@ final class AdminPanel implements Listener {
     }
 
     void open(Player player, int page, Filter filter) {
+        if (!player.hasPermission("fpvdrone.admin")) {
+            player.sendMessage(Component.text("Нет прав fpvdrone.admin", NamedTextColor.RED));
+            return;
+        }
         try {
+            this.plugin.skinMenus().close(player, false);
             this.openUnsafe(player, page, filter);
         } catch (Throwable t) {
             this.plugin.getLogger().log(java.util.logging.Level.SEVERE, "Панель /flyskin admin не открылась", t);
@@ -156,7 +167,8 @@ final class AdminPanel implements Listener {
         int pages = Math.max(1, (all.size() + PER_PAGE - 1) / PER_PAGE);
         page = Math.max(0, Math.min(pages - 1, page));
         Holder h = new Holder(page, filter);
-        Inventory inv = Bukkit.createInventory(null, 54, Component.text("Скины: " + filter.title + " (" + (page + 1) + "/" + pages + ")"));
+        Inventory inv = Bukkit.createInventory(h, 54, Component.text("Скины: " + filter.title + " (" + (page + 1) + "/" + pages + ")"));
+        h.inventory = inv;
         for (int i = 0; i < PER_PAGE; i++) {
             int idx = page * PER_PAGE + i;
             if (idx >= all.size()) {
@@ -176,6 +188,7 @@ final class AdminPanel implements Listener {
                 on++;
             }
         }
+        inv.setItem(47, button(Material.COMPARATOR, "Стабилизация: " + this.plugin.stabilizationLabel(), "Нажми: All → Acro → Level", "Применяется ко всем пилотам сразу"));
         inv.setItem(48, button(Material.LIME_DYE, "Включить все в разделе", "Сейчас включено: " + on + " из " + all.size()));
         inv.setItem(49, button(Material.BOOK, "Как пользоваться",
             "ЛКМ — включить / выключить скин",
@@ -187,8 +200,19 @@ final class AdminPanel implements Listener {
             "у кого такой был — летает скин по умолчанию."));
         inv.setItem(50, button(Material.GRAY_DYE, "Выключить все в разделе", "Скин по умолчанию выключить нельзя"));
         inv.setItem(53, button(Material.ARROW, "Вперёд ▶", page < pages - 1 ? "Страница " + (page + 2) : "Это последняя страница"));
-        player.openInventory(inv);
-        this.openWindows.put(inv, h);
+        if (player.openInventory(inv) == null) {
+            player.sendMessage(Component.text("Сервер отклонил открытие панели. Подробности в консоли. "
+                + "Пока доступны /fpvdrone:flyskin enable <скин> и /fpvdrone:flyskin disable <скин>.", NamedTextColor.RED));
+            this.plugin.getLogger().warning("openInventory вернул null для " + player.getName()
+                + ": проверьте отмену InventoryOpenEvent и ограничения открытия инвентарей.");
+            return;
+        }
+        this.plugin.getServer().getScheduler().runTask(this.plugin, () -> {
+            if (player.isOnline() && !(player.getOpenInventory().getTopInventory().getHolder(false) instanceof Holder)) {
+                player.sendMessage(Component.text("Панель открылась на сервере, но уже закрыта или заменена другим окном.", NamedTextColor.YELLOW));
+                this.plugin.getLogger().warning("Админ-панель " + player.getName() + " закрыта/заменена до следующего тика.");
+            }
+        });
     }
 
     private ItemStack icon(SkinCatalog.Mob m) {
@@ -221,11 +245,7 @@ final class AdminPanel implements Listener {
 
     private ItemStack baseIcon(SkinCatalog.Mob m) {
         if (m.bird != null) {
-            String skin = BirdData.iconSkin(m.bird);
-            ItemStack head = skin == null ? null : this.plugin.birdHeads().item(skin);
-            if (head != null) {
-                return head;
-            }
+            // Administrative controls must not depend on downloaded skull textures.
             return new ItemStack(m.bird.fantasy() ? Material.AMETHYST_SHARD : Material.FEATHER);
         }
         if (m.custom) {
@@ -260,46 +280,51 @@ final class AdminPanel implements Listener {
 
     @EventHandler
     public void onClick(InventoryClickEvent event) {
-        Holder h = this.openWindows.get(event.getInventory());
-        if (h == null) {
+        Inventory top = event.getView().getTopInventory();
+        if (!(top.getHolder(false) instanceof Holder h)) {
             return;
         }
         event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player) || event.getClickedInventory() != event.getInventory()) {
+        if (!(event.getWhoClicked() instanceof Player player) || (event.getRawSlot() < 0 || event.getRawSlot() >= top.getSize())) {
             return;
         }
         if (!player.hasPermission("fpvdrone.admin")) {
-            player.closeInventory();
+            Bukkit.getScheduler().runTask(this.plugin, () -> player.closeInventory());
             return;
         }
         int slot = event.getRawSlot();
-        List<SkinCatalog.Mob> all = this.list(h.filter);
         switch (slot) {
             case 45 -> {
-                this.open(player, h.page - 1, h.filter);
+                this.reopen(player, h, h.page - 1, h.filter);
                 return;
             }
             case 53 -> {
-                this.open(player, h.page + 1, h.filter);
+                this.reopen(player, h, h.page + 1, h.filter);
                 return;
             }
             case 46 -> {
                 Filter next = Filter.values()[(h.filter.ordinal() + 1) % Filter.values().length];
-                this.open(player, 0, next);
+                this.reopen(player, h, 0, next);
+                return;
+            }
+            case 47 -> {
+                this.plugin.cycleStabilization();
+                this.reopen(player, h, h.page, h.filter);
                 return;
             }
             case 48, 50 -> {
                 boolean enable = slot == 48;
-                for (SkinCatalog.Mob m : all) {
+                Set<String> affected = new HashSet<>();
+                for (SkinCatalog.Mob m : this.list(h.filter)) {
                     String id = m.id.toLowerCase(Locale.ROOT);
                     if (enable) {
-                        this.disabled.remove(id);
+                        if (this.disabled.remove(id)) affected.add(id);
                     } else if (!id.equalsIgnoreCase(this.plugin.defaultSkinId())) {
-                        this.disabled.add(id);
+                        if (this.disabled.add(id)) affected.add(id);
                     }
                 }
-                this.changed();
-                this.open(player, h.page, h.filter);
+                this.changed(affected);
+                this.reopen(player, h, h.page, h.filter);
                 return;
             }
             default -> {
@@ -330,24 +355,51 @@ final class AdminPanel implements Listener {
         } else {
             return;
         }
-        this.changed();
+        this.changed(Set.of(id));
         event.getInventory().setItem(slot, this.icon(m));
     }
 
     @EventHandler
     public void onDrag(InventoryDragEvent event) {
-        if (this.openWindows.containsKey(event.getInventory())) {
+        if (event.getView().getTopInventory().getHolder(false) instanceof Holder) {
             event.setCancelled(true);
         }
     }
 
-    @EventHandler
-    public void onClose(org.bukkit.event.inventory.InventoryCloseEvent event) {
-        this.openWindows.remove(event.getInventory());
+    private void reopen(Player player, Holder current, int page, Filter filter) {
+        Bukkit.getScheduler().runTask(this.plugin, () -> {
+            if (player.isOnline() && player.getOpenInventory().getTopInventory().getHolder(false) == current) {
+                this.open(player, page, filter);
+            }
+        });
     }
 
-    private void changed() {
+    void closeAll() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player.getOpenInventory().getTopInventory().getHolder(false) instanceof Holder) {
+                player.closeInventory();
+            }
+        }
+    }
+
+    boolean setEnabled(SkinCatalog.Mob mob, boolean enabled) {
+        String id = mob.id.toLowerCase(Locale.ROOT);
+        if (!enabled && id.equalsIgnoreCase(this.plugin.defaultSkinId())) return false;
+        boolean changed = enabled ? this.disabled.remove(id) : this.disabled.add(id);
+        if (changed) this.changed(Set.of(id));
+        return true;
+    }
+
+    private void changed(Set<String> affected) {
+        if (affected.isEmpty()) return;
         this.save();
-        this.plugin.applyAdminSettings();
+        this.plugin.applyAdminSettings(affected);
+        Bukkit.getScheduler().runTask(this.plugin, () -> {
+            for (Player viewer : Bukkit.getOnlinePlayers()) {
+                if (viewer.getOpenInventory().getTopInventory().getHolder(false) instanceof Holder h) {
+                    this.open(viewer, h.page, h.filter);
+                }
+            }
+        });
     }
 }

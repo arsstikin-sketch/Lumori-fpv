@@ -12,6 +12,8 @@ public final class DroneState {
     public static final int FLAG_ARMED = 2;
     public static final int FLAG_CRASHED = 4;
 
+    public boolean levelMode;
+    public boolean modeReported;
     public boolean active;
     public boolean armed;
     public boolean crashed;
@@ -35,6 +37,8 @@ public final class DroneState {
     /** Копия со сдвинутой позицией (упреждение, чтобы модель не отставала). */
     public DroneState shifted(double dx, double dy, double dz) {
         DroneState c = new DroneState();
+        c.levelMode = this.levelMode;
+        c.modeReported = this.modeReported;
         c.active = this.active;
         c.armed = this.armed;
         c.crashed = this.crashed;
@@ -68,6 +72,8 @@ public final class DroneState {
             }
             int flags = buf.get() & 0xFF;
             DroneState s = new DroneState();
+            s.levelMode = (flags & 8) != 0;
+            s.modeReported = (flags & 16) != 0;
             s.active = (flags & FLAG_ACTIVE) != 0;
             s.armed = (flags & FLAG_ARMED) != 0;
             s.crashed = (flags & FLAG_CRASHED) != 0;
@@ -109,7 +115,8 @@ public final class DroneState {
     }
 
     private void normalizeQuaternion() {
-        double len = Math.sqrt(this.qx * this.qx + this.qy * this.qy + this.qz * this.qz + this.qw * this.qw);
+        double len = Math.sqrt((double) this.qx * this.qx + (double) this.qy * this.qy
+            + (double) this.qz * this.qz + (double) this.qw * this.qw);
         if (len < 1.0E-6) {
             this.qx = 0.0F;
             this.qy = 0.0F;
@@ -117,18 +124,26 @@ public final class DroneState {
             this.qw = 1.0F;
             return;
         }
-        this.qx /= (float) len;
-        this.qy /= (float) len;
-        this.qz /= (float) len;
-        this.qw /= (float) len;
+        this.qx = (float) (this.qx / len);
+        this.qy = (float) (this.qy / len);
+        this.qz = (float) (this.qz / len);
+        this.qw = (float) (this.qw / len);
     }
 
     /** Пакет config для клиента: версия, дальность, флаги. */
     public static byte[] encodeConfig(float maxRange) {
-        ByteBuffer buf = ByteBuffer.allocate(6);
-        buf.put(VERSION);
-        buf.putFloat(maxRange);
-        buf.put((byte) 0);
+        return encodeConfig(maxRange, 0);
+    }
+
+    public static byte[] encodeConfig(float maxRange, int stabilization) {
+        return encodeConfig(maxRange, stabilization, new float[5], (byte) -1);
+    }
+
+    public static byte[] encodeConfig(float maxRange, int stabilization, float[] damage, byte liquids) {
+        ByteBuffer buf = ByteBuffer.allocate(27);
+        buf.put(VERSION).putFloat(maxRange).put((byte) stabilization);
+        for (int i = 0; i < 5; i++) buf.putFloat(damage[i]);
+        buf.put(liquids);
         return buf.array();
     }
 }

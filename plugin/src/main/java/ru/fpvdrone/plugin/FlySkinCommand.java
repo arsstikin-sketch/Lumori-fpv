@@ -31,6 +31,33 @@ final class FlySkinCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         String sub = args.length == 0 ? "" : args[0].toLowerCase(Locale.ROOT);
+        if (sub.equals("diagnose")) {
+            sender.sendMessage(Component.text("FpvDrone " + this.plugin.getPluginMeta().getVersion()
+                + " · " + org.bukkit.Bukkit.getVersion() + " · admin=" + sender.hasPermission(ADMIN)
+                + " · stabilization=" + this.plugin.stabilizationLabel()));
+            if (sender instanceof Player p) {
+                sender.sendMessage(Component.text("Меню открыто: " + this.plugin.skinMenus().isOpen(p)
+                    + "; скин: " + this.plugin.skinOf(p).fullName() + "; доступно скинов: " + this.plugin.menuMobs().size()));
+                this.plugin.skinMenus().diagnose(p);
+            }
+            sender.sendMessage(Component.text("Прямая команда панели: /fpvdrone:flyskin admin"));
+            return true;
+        }
+        if (sub.equals("enable") || sub.equals("disable")) {
+            if (!sender.hasPermission(ADMIN)) {
+                sender.sendMessage(Component.text("Нет прав fpvdrone.admin", NamedTextColor.RED));
+                return true;
+            }
+            SkinCatalog.Mob mob = args.length > 1 ? this.plugin.findMob(args[1]) : null;
+            if (mob == null) {
+                sender.sendMessage(Component.text("/flyskin " + sub + " <id скина>", NamedTextColor.YELLOW));
+            } else if (!this.plugin.adminPanel().setEnabled(mob, sub.equals("enable"))) {
+                sender.sendMessage(Component.text("Скин по умолчанию выключить нельзя", NamedTextColor.RED));
+            } else {
+                sender.sendMessage(Component.text(mob.name + (sub.equals("enable") ? " включён" : " выключен"), NamedTextColor.GREEN));
+            }
+            return true;
+        }
         if (sub.equals("reload")) {
             if (!sender.hasPermission(ADMIN)) {
                 sender.sendMessage(Component.text("Нет прав", NamedTextColor.RED));
@@ -49,6 +76,10 @@ final class FlySkinCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         if (sub.equals("admin") || sub.equals("админ")) {
+            sender.sendMessage(Component.text("FpvDrone " + this.plugin.getPluginMeta().getVersion()
+                + ": команда панели получена", NamedTextColor.GRAY));
+            this.plugin.getLogger().info("Запрос админ-панели: " + sender.getName() + " /" + label
+                + " (FpvDrone " + this.plugin.getPluginMeta().getVersion() + ")");
             if (!(sender instanceof Player p)) {
                 sender.sendMessage(Component.text("Панель открывается только в игре", NamedTextColor.RED));
             } else if (!sender.hasPermission(ADMIN)) {
@@ -96,7 +127,7 @@ final class FlySkinCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(Component.text("Нет такого моба. /flyskin list", NamedTextColor.RED));
             return;
         }
-        if (!this.plugin.adminPanel().enabled(mob) && !player.hasPermission(ADMIN)) {
+        if (!this.plugin.adminPanel().enabled(mob)) {
             player.sendMessage(Component.text("Этот скин выключен администратором", NamedTextColor.RED));
             return;
         }
@@ -112,6 +143,9 @@ final class FlySkinCommand implements CommandExecutor, TabCompleter {
     private void list(CommandSender sender) {
         sender.sendMessage(Component.text("Скины (моб: варианты):", NamedTextColor.GOLD));
         for (SkinCatalog.Mob mob : this.plugin.allMobs()) {
+            if (!sender.hasPermission(ADMIN) && !this.plugin.adminPanel().enabled(mob)) {
+                continue;
+            }
             List<String> ids = new ArrayList<>();
             for (SkinCatalog.Variant v : mob.variants) {
                 ids.add(v.id);
@@ -168,7 +202,7 @@ final class FlySkinCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> out = new ArrayList<>();
         if (args.length == 1) {
-            for (String s : new String[] {"set", "list", "reset", "reload", "heads", "admin"}) {
+            for (String s : new String[] {"set", "list", "reset", "reload", "heads", "admin", "enable", "disable", "diagnose"}) {
                 if (s.startsWith(args[0].toLowerCase(Locale.ROOT))) {
                     out.add(s);
                 }
@@ -179,15 +213,15 @@ final class FlySkinCommand implements CommandExecutor, TabCompleter {
                     out.add(s);
                 }
             }
-        } else if (args.length == 2 && args[0].equalsIgnoreCase("set")) {
+        } else if (args.length == 2 && (args[0].equalsIgnoreCase("set") || args[0].equalsIgnoreCase("enable") || args[0].equalsIgnoreCase("disable"))) {
             for (SkinCatalog.Mob mob : this.plugin.allMobs()) {
-                if (mob.id.startsWith(args[1].toLowerCase(Locale.ROOT))) {
+                if ((this.plugin.adminPanel().enabled(mob) || (sender.hasPermission(ADMIN) && !args[0].equalsIgnoreCase("set"))) && mob.id.startsWith(args[1].toLowerCase(Locale.ROOT))) {
                     out.add(mob.id);
                 }
             }
         } else if (args.length == 3 && args[0].equalsIgnoreCase("set")) {
             SkinCatalog.Mob mob = this.plugin.findMob(args[1]);
-            if (mob != null) {
+            if (mob != null && this.plugin.adminPanel().enabled(mob)) {
                 for (SkinCatalog.Variant v : mob.variants) {
                     if (v.id.startsWith(args[2].toLowerCase(Locale.ROOT))) {
                         out.add(v.id);

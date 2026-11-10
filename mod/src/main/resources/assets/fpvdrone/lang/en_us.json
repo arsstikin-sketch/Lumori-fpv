@@ -6,5 +6,6 @@
   "key.fpvdrone.settings": "FPV Drone settings",
   "key.fpvdrone.view": "View: player / drone",
   "key.fpvdrone.controller": "Controller axis setup",
-  "subtitles.fpvdrone.motor": "Drone motors buzz"
+  "subtitles.fpvdrone.motor": "Drone motors buzz",
+  "key.fpvdrone.stabilization": "Stabilization Acro / Level"
 }

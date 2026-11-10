@@ -86,7 +86,8 @@ public final class RemoteState {
     }
 
     private void normalizeQuaternion() {
-        double len = Math.sqrt(this.qx * this.qx + this.qy * this.qy + this.qz * this.qz + this.qw * this.qw);
+        double len = Math.sqrt((double) this.qx * this.qx + (double) this.qy * this.qy
+            + (double) this.qz * this.qz + (double) this.qw * this.qw);
         if (len < 1.0E-6) {
             this.qx = 0.0F;
             this.qy = 0.0F;
@@ -94,9 +95,9 @@ public final class RemoteState {
             this.qw = 1.0F;
             return;
         }
-        this.qx /= (float) len;
-        this.qy /= (float) len;
-        this.qz /= (float) len;
-        this.qw /= (float) len;
+        this.qx = (float) (this.qx / len);
+        this.qy = (float) (this.qy / len);
+        this.qz = (float) (this.qz / len);
+        this.qw = (float) (this.qw / len);
     }
 }

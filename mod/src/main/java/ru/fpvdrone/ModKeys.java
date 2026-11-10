@@ -14,6 +14,7 @@ public final class ModKeys {
     public static final KeyMapping.Category CATEGORY =
         KeyMapping.Category.register(Identifier.fromNamespaceAndPath(FpvDroneClient.MOD_ID, "main"));
 
+    public static KeyMapping STABILIZATION;
     public static KeyMapping ARM;
     public static KeyMapping EXIT;
     public static KeyMapping RESPAWN;
@@ -25,6 +26,7 @@ public final class ModKeys {
     }
 
     public static void register() {
+        STABILIZATION = KeyMappingHelper.registerKeyMapping(create("key.fpvdrone.stabilization", InputConstants.KEY_M));
         ARM = KeyMappingHelper.registerKeyMapping(create("key.fpvdrone.arm", InputConstants.KEY_R));
         EXIT = KeyMappingHelper.registerKeyMapping(create("key.fpvdrone.exit", InputConstants.KEY_BACKSPACE));
         RESPAWN = KeyMappingHelper.registerKeyMapping(create("key.fpvdrone.respawn", InputConstants.KEY_H));

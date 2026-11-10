@@ -74,7 +74,7 @@ public final class DroneHud {
             int y = 8;
             String armText = s.destroyed ? "РАЗБИТ" : (s.armed ? "ARMED" : "DISARMED");
             int armColor = s.destroyed ? RED : (s.armed ? GREEN : YELLOW);
-            g.text(font, armText, x, y, armColor, true);
+            g.text(font, armText + " · " + DroneNetClient.effectiveStabilization(), x, y, armColor, true);
             g.text(font, String.format(Locale.ROOT, "Газ %3d%%", Math.round(c.sticks().throttle() * 100.0F)), x, y + 11, WHITE, true);
             g.text(font, String.format(Locale.ROOT, "%3.0f км/ч", s.speed() * 3.6), x, y + 22, WHITE, true);
             g.text(font, String.format(Locale.ROOT, "Выс %+.1f м", s.y - s.launchY), x, y + 33, WHITE, true);

@@ -17,7 +17,6 @@ import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
-import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
@@ -34,13 +33,9 @@ final class SkinMenu {
 
     private static final double DIST = 2.0;      // от глаз до центрального моба
     private static final double SPACING = 0.85;  // между мобами в карусели
-    private static final int SLIDE_TICKS = 5;
 
     private final FpvDronePlugin plugin;
-    private final SkinCatalog catalog;
     private final List<SkinCatalog.Mob> mobs;
-    /** true — в карусели настоящие мобы (без ресурспака), false — модели из пака. */
-    private final boolean entityMode;
     private final LivingEntity[] mobSlots = new LivingEntity[5];
     private final SkinCatalog.Variant[] mobSlotVariant = new SkinCatalog.Variant[5];
     private final double[] mobSlotOffset = new double[5];
@@ -58,8 +53,6 @@ final class SkinMenu {
     private final Location anchor;
 
     private final List<Entity> entities = new ArrayList<>();
-    private final ItemDisplay[] slots = new ItemDisplay[5];
-    private final int[] slotFrames = new int[5];
     private final Map<UUID, Runnable> buttons = new HashMap<>();
     private TextDisplay title;
     private TextDisplay name;
@@ -75,7 +68,6 @@ final class SkinMenu {
     private int slideDelta;
     private int slideWait;
     private int busyTicks;
-    private double flapPhase;
     private long lastClickTick = -10;
 
     // предыдущее состояние клавиш (реагируем на нажатие, а не на удержание)
@@ -86,11 +78,9 @@ final class SkinMenu {
     boolean lastForward;
     boolean lastBack;
 
-    SkinMenu(FpvDronePlugin plugin, SkinCatalog catalog, Player player, SkinCatalog.Variant current) {
+    SkinMenu(FpvDronePlugin plugin, Player player, SkinCatalog.Variant current) {
         this.plugin = plugin;
-        this.catalog = catalog;
         this.mobs = plugin.menuMobs();
-        this.entityMode = true;
         this.player = player;
         this.frozenAt = player.getLocation().clone();
         this.world = player.getWorld();
@@ -282,12 +272,18 @@ final class SkinMenu {
                 if (mob != null) {
                     this.player.showEntity(this.plugin, mob);
                     this.entities.add(mob);
+                    // Reassert visibility after the server has registered the entity tracker.
+                    this.plugin.getServer().getScheduler().runTask(this.plugin, () -> {
+                        if (mob.isValid() && this.player.isOnline() && this.entities.contains(mob)) {
+                            this.player.showEntity(this.plugin, mob);
+                        }
+                    });
                 }
                 this.mobSlots[i] = mob;
                 this.mobSlotVariant[i] = v;
             }
             this.mobSlotOffset[i] = from;
-            this.placeMob(i, 0.0, 0.0F, false);
+            this.placeMob(i, 0.0, 0.0F);
         }
     }
 
@@ -315,7 +311,7 @@ final class SkinMenu {
             this.anchor.getZ() + this.rz * offset * SPACING + this.fz * a * 0.35};
     }
 
-    private void placeMob(int i, double spin, float pitch, boolean upsideDown) {
+    private void placeMob(int i, double spin, float pitch) {
         LivingEntity mob = this.mobSlots[i];
         if (mob == null || !mob.isValid()) {
             return;
@@ -323,12 +319,11 @@ final class SkinMenu {
         double offset = this.mobSlotOffset[i];
         double[] p = this.mobPoint(offset);
         float yaw = (float) -Math.toDegrees(this.faceYaw + offset * 0.45 + spin);
-        MobEntities.pose(mob, this.world, p[0], p[1], p[2], yaw, pitch, upsideDown);
+        MobEntities.pose(mob, this.world, p[0], p[1], p[2], yaw, pitch);
     }
 
-    /** Сдвиг карусели и фигуры центрального моба: разворот, кивки, полёт вверх ногами. */
+    /** Сдвиг карусели и фигуры центрального моба: разворот и кивки. */
     private void tickMobs() {
-        int local = this.tick % 240;
         for (int i = 0; i < 5; i++) {
             LivingEntity mob = this.mobSlots[i];
             if (mob == null || !mob.isValid()) {
@@ -346,10 +341,9 @@ final class SkinMenu {
             if (i == 2) {
                 double spin = Math.toRadians(this.tick * 3.0);
                 float pitch = (float) (Math.sin(this.tick * 0.08) * 35.0);
-                boolean upside = local >= 150 && local < 190;
-                this.placeMob(i, spin, pitch, upside);
+                this.placeMob(i, spin, pitch);
             } else if (moved || this.tick % 20 == 0) {
-                this.placeMob(i, 0.0, 0.0F, false);
+                this.placeMob(i, 0.0, 0.0F);
             }
         }
     }
@@ -456,7 +450,6 @@ final class SkinMenu {
         } else {
             this.variantCursor = Math.floorMod(this.variantCursor + delta, n);
         }
-        this.flapPhase = 0;
         this.refreshAll(delta);
         this.updateTexts();
         this.player.playSound(this.player.getLocation(), org.bukkit.Sound.UI_BUTTON_CLICK, 0.4F, 1.6F);
@@ -545,9 +538,28 @@ final class SkinMenu {
         if (this.slideDelta != 0 && --this.slideWait <= 0) {
             this.finishSlide();
         }
+        if (this.tick % 20 == 0) {
+            for (int i = 0; i < this.mobSlots.length; i++) {
+                if (this.mobSlotVariant[i] != null && (this.mobSlots[i] == null || !this.mobSlots[i].isValid())) {
+                    this.refreshMobs(0, this.count(), this.cursor());
+                    break;
+                }
+            }
+        }
         this.tickBirds();
         this.tickMobs();
         return true;
+    }
+
+    void diagnose() {
+        for (int i = 0; i < this.mobSlots.length; i++) {
+            LivingEntity mob = this.mobSlots[i];
+            if (this.mobSlotVariant[i] == null) continue;
+            this.player.sendMessage(Component.text("Слот " + i + ": " + this.mobSlotVariant[i].fullName()
+                + (mob == null ? " — не создан" : " valid=" + mob.isValid() + " visible=" + this.player.canSee(mob)
+                    + " invisible=" + mob.isInvisible() + " tracked=" + mob.getTrackedBy().contains(this.player)
+                    + " height=" + String.format(java.util.Locale.ROOT, "%.2f", mob.getHeight()))));
+        }
     }
 
     void remove() {

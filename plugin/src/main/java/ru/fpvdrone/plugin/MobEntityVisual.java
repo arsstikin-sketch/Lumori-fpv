@@ -27,7 +27,7 @@ final class MobEntityVisual implements SkinVisual {
             return;
         }
         float[] a = MobEntities.angles(s);
-        MobEntities.pose(this.mob, world, s.x, s.y, s.z, a[0], a[1], a[2] > 0.5F);
+        MobEntities.pose(this.mob, world, s.x, s.y, s.z, a[0], a[1]);
     }
 
     @Override

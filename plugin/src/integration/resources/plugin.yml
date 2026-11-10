@@ -1,0 +1,5 @@
+name: PaperSmoke
+version: 1.0
+main: ru.fpvdrone.test.PaperSmoke
+api-version: "26.1"
+depend: [FpvDrone]

@@ -3,6 +3,7 @@ package ru.fpvdrone.damage;
 import org.joml.Vector3f;
 import ru.fpvdrone.DroneSettings;
 import ru.fpvdrone.flight.DroneState;
+import ru.fpvdrone.net.DroneNetClient;
 
 /**
  * Поломки «как в Liftoff»: чем сильнее удар, тем сильнее ломается часть, которой дрон ударился.
@@ -41,7 +42,7 @@ public final class DamageModel {
         double ty = state.vy - ny * impact;
         double tz = state.vz - nz * impact;
 
-        if (impact < settings.bumpSpeed) {
+        if (impact < DroneNetClient.bumpSpeed(settings)) {
             // Касание / скольжение / посадка: гасим скорость «в стену», немного трения.
             state.vx = tx * 0.92;
             state.vy = ty * 0.92;
@@ -77,7 +78,8 @@ public final class DamageModel {
     }
 
     static void applyDamage(Vector3f local, double speed, DroneSettings settings, DroneDamage damage) {
-        float fragility = 1.0F / Math.max(0.25F, settings.durability);
+        if (DroneNetClient.durability(settings) >= 4.0F) return;
+        float fragility = 1.0F / Math.max(0.25F, DroneNetClient.durability(settings));
 
         float[] weight = new float[4];
         double horizontal = Math.sqrt(local.x * local.x + local.z * local.z);
@@ -98,8 +100,8 @@ public final class DamageModel {
         }
         boolean belly = local.y < -0.6F; // удар брюхом — жёсткая посадка
 
-        float propSeverity = severity(speed, settings.bumpSpeed, settings.propBreakSpeed) * fragility;
-        float armSeverity = severity(speed, settings.propBreakSpeed, settings.armBreakSpeed) * fragility;
+        float propSeverity = severity(speed, DroneNetClient.bumpSpeed(settings), DroneNetClient.propBreakSpeed(settings)) * fragility;
+        float armSeverity = severity(speed, DroneNetClient.propBreakSpeed(settings), DroneNetClient.armBreakSpeed(settings)) * fragility;
         for (int i = 0; i < 4; i++) {
             damage.prop[i] = Math.max(0.0F, damage.prop[i] - weight[i] * propSeverity);
             float armHit = weight[i] * armSeverity + (belly ? 0.25F * armSeverity : 0.0F);
@@ -107,11 +109,11 @@ public final class DamageModel {
         }
 
         float front = Math.max(0.0F, local.z);
-        float cameraBreak = settings.frameBreakSpeed * 0.7F;
+        float cameraBreak = DroneNetClient.frameBreakSpeed(settings) * 0.7F;
         float cameraSeverity = severity(speed, cameraBreak * 0.5F, cameraBreak) * fragility;
         damage.camera = Math.max(0.0F, damage.camera - front * cameraSeverity);
 
-        float frameSeverity = severity(speed, settings.frameBreakSpeed * 0.45F, settings.frameBreakSpeed) * fragility;
+        float frameSeverity = severity(speed, DroneNetClient.frameBreakSpeed(settings) * 0.45F, DroneNetClient.frameBreakSpeed(settings)) * fragility;
         damage.frame = Math.max(0.0F, damage.frame - frameSeverity);
     }
 
