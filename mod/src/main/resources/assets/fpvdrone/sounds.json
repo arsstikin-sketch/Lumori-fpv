@@ -1,0 +1,12 @@
+{
+  "motor": {
+    "subtitle": "subtitles.fpvdrone.motor",
+    "sounds": [
+      {
+        "name": "fpvdrone:motor",
+        "stream": false,
+        "attenuation_distance": 48
+      }
+    ]
+  }
+}

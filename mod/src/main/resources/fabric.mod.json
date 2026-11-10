@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "fpvdrone",
+  "version": "${version}",
+  "name": "FPV Drone",
+  "description": "FPV-дрон с радиопультом: акро-физика, рейты Betaflight, поломки по частям. Ставится и на клиент, и на Fabric-сервер — тогда игроки видят дроны друг друга (на Paper — через плагин FpvDrone).",
+  "authors": ["Арсений Стикин"],
+  "license": "All-Rights-Reserved",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["ru.fpvdrone.FpvDroneMod"],
+    "client": ["ru.fpvdrone.FpvDroneClient"],
+    "modmenu": ["ru.fpvdrone.ui.ModMenuIntegration"]
+  },
+  "mixins": ["fpvdrone.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "minecraft": "~26.3",
+    "java": ">=25",
+    "fabric-api": "*"
+  },
+  "recommends": {
+    "modmenu": "*"
+  },
+  "breaks": {
+    "fpvfreecam": "*"
+  }
+}

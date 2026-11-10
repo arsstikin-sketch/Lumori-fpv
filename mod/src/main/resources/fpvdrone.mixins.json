@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "ru.fpvdrone.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "server.BlockDisplayInvoker",
+    "server.DisplayInvoker",
+    "server.EntityTrackingMixin"
+  ],
+  "client": [
+    "CameraMixin",
+    "HandsMixin",
+    "KeyboardInputMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

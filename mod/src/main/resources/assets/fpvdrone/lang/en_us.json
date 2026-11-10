@@ -1,0 +1,10 @@
+{
+  "key.category.fpvdrone.main": "FPV Drone",
+  "key.fpvdrone.arm": "Launch / arm / disarm",
+  "key.fpvdrone.exit": "Remove drone (back to player)",
+  "key.fpvdrone.respawn": "Respawn drone at start",
+  "key.fpvdrone.settings": "FPV Drone settings",
+  "key.fpvdrone.view": "View: player / drone",
+  "key.fpvdrone.controller": "Controller axis setup",
+  "subtitles.fpvdrone.motor": "Drone motors buzz"
+}

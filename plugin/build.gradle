@@ -1,0 +1,37 @@
+plugins {
+    id 'java'
+}
+
+group = 'ru.fpvdrone'
+version = '0.7.3'
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'papermc'
+        url = 'https://repo.papermc.io/repository/maven-public/'
+    }
+}
+
+dependencies {
+    // API 26.1.2 работает и на сервере 26.3 (используются только стабильные методы).
+    compileOnly 'io.papermc.paper:paper-api:26.1.2.build.+'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filteringCharset = 'UTF-8'
+    filesMatching('plugin.yml') {
+        expand 'version': project.version
+    }
+}

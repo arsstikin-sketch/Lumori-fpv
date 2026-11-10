@@ -1,0 +1,19 @@
+name: FpvDrone
+version: '${version}'
+main: ru.fpvdrone.plugin.FpvDronePlugin
+api-version: '26.1'
+description: Показывает FPV-дроны (мод FPV Freecam + fpvdrone) всем игрокам на сервере.
+authors: [Арсений Стикин]
+
+commands:
+  drone:
+    description: Настройки FPV-дрона
+    usage: /drone help
+  flyskin:
+    description: Выбор скина-моба для FPV-дрона
+    usage: /flyskin
+
+permissions:
+  fpvdrone.admin:
+    description: /drone list, /drone reload, /flyskin reload, /flyskin admin, /flyskin heads
+    default: op

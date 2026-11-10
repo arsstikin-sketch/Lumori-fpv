@@ -1,0 +1,25 @@
+# Gradle / сборка
+.gradle/
+build/
+out/
+bin/
+run/
+*.class
+# собранные jar (кроме обёртки Gradle и локальных библиотек)
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+!**/gradle/wrapper/gradle-wrapper.jar
+!mod/libs/*.jar
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+# система
+.DS_Store
+Thumbs.db
+# секреты и данные сервера
+*.secret
+mineskin-key.txt
