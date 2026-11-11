@@ -25,7 +25,7 @@
 Каналы plugin messaging: `fpvdrone:state`, `fpvdrone:hello`, `fpvdrone:config`, `fpvdrone:colors`.
 - **state**, 64 байта, big-endian: `version(1)`, `flags` (1 — активен, 2 — армлен, 4 — разбит), `double x, y, z`, `float qx, qy, qz, qw` (локальные оси дрона: +Z вперёд, +Y вверх, +X влево), `cameraAngleDeg`, `throttle`, `speed`, 4 × здоровье пропеллеров, 4 × здоровье лучей, камера, рама (0..100).
 - **config** (сервер → мод), 27 байт: `version`, `float maxRange` (0 — выбор игрока до 512 блоков), `byte stabilization` (0 — All, 1 — Acro, 2 — Level), пять `float` в порядке durability, safe-contact, propeller-break, motor-break, frame-destroy (0 — выбор игрока), `byte liquids-destroy` (-1 — выбор игрока, 0 — нет, 1 — да). Мод также читает старый 6-байтный пакет.
-- **state flags**: 1 — активен, 2 — армлен, 4 — разбит, 8 — Level, 16 — режим стабилизации передан.
+- **state flags**: 1 — активен, 2 — армлен, 4 — разбит, 8 — Level, 16 — режим стабилизации передан, 32 — камера внутри дрона.
 - **colors**: `version` + 7 индексов цветов (рама, лучи, пропеллеры, моторы, камера, батарея, подсветка) в порядке white, light_gray, gray, black, brown, red, orange, yellow, lime, green, cyan, light_blue, blue, purple, magenta, pink.
 
 Если меняешь формат — подними `version` и обнови `mod/.../net/DroneProtocol` и `plugin/.../DroneState`.

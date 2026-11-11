@@ -45,7 +45,6 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
     private boolean hideOwnDrone;
     /** always-show, always-hide, hide-while-flying */
     private String ownDroneMode;
-    private double ownShowDistance;
     private boolean birdRefreshPending;
     private long lastBirdRefresh;
     private boolean logRejected;
@@ -156,7 +155,6 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
             own = "hide-while-flying";
         }
         this.ownDroneMode = own;
-        this.ownShowDistance = Math.max(0.0, this.getConfig().getDouble("own-drone-show-distance", 2.0));
         this.logRejected = this.getConfig().getBoolean("log-rejected-packets", true);
         this.brightModel = this.getConfig().getBoolean("bright-model", true);
         this.glowOutline = this.getConfig().getBoolean("glow-outline", false);
@@ -304,8 +302,7 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
     }
 
     /**
-     * Своя модель для пилота: «hide-while-flying» — не видна, пока дрон армлен (игрок управляет),
-     * и видна, когда дрон выключен и стоит/лежит дальше own-drone-show-distance от глаз (игрок вернулся к себе).
+     * Своя модель видна от лица игрока независимо от расстояния и состояния моторов.
      */
     private void updateOwnVisibility(PilotSession session, Player player) {
         if (session.visual == null || session.state == null) {
@@ -317,12 +314,7 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
             case "always-hide" -> want = false;
             default -> {
                 DroneState st = session.state;
-                Location eye = player.getEyeLocation();
-                double dx = st.x - eye.getX();
-                double dy = st.y - eye.getY();
-                double dz = st.z - eye.getZ();
-                boolean far = dx * dx + dy * dy + dz * dz > this.ownShowDistance * this.ownShowDistance;
-                want = (!st.armed || st.crashed) && far;
+                want = !st.viewingDrone;
             }
         }
         if (want != session.ownVisible) {

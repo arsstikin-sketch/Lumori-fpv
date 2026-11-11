@@ -11,6 +11,8 @@ public final class DroneState {
     public boolean keyboardSmartSteering;
     public boolean spectatorMode;
     public double spectatorWishX, spectatorWishY, spectatorWishZ;
+    public double spectatorLookYaw, spectatorLookPitch;
+    public double spectatorAccelX, spectatorAccelY, spectatorAccelZ;
     final LevelStabilizer stabilizer = new LevelStabilizer();
     public double x;
     public double y;
@@ -61,6 +63,8 @@ public final class DroneState {
         this.vx = 0.0;
         this.vy = 0.0;
         this.vz = 0.0;
+        this.spectatorWishX = this.spectatorWishY = this.spectatorWishZ = 0.0;
+        this.spectatorAccelX = this.spectatorAccelY = this.spectatorAccelZ = 0.0;
         // Minecraft: yaw 0 = смотрит на +Z, 90 = на -X. Наш поворот вокруг +Y переводит +Z в (sin, 0, cos).
         this.orientation.identity().rotateY((float) Math.toRadians(-minecraftYawDeg));
         this.prevOrientation.set(this.orientation);

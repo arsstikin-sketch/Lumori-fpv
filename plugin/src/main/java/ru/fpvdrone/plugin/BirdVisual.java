@@ -57,6 +57,11 @@ final class BirdVisual implements SkinVisual {
     private double sy;
     private double sz;
     private final boolean bright;
+    private final boolean preview;
+    private boolean poseInitialized;
+    private double previewYaw;
+    private double previewPitch;
+    private double previewBank;
 
     // состояние анимации
     private double ph = Math.random() * 6.0;
@@ -95,6 +100,7 @@ final class BirdVisual implements SkinVisual {
     BirdVisual(Plugin plugin, BirdHeads heads, Location at, BirdData.Bird bird, int variant, double sizeBlocks,
                Player hideFrom, Player onlyFor, float viewRange, boolean bright) {
         this.plugin = plugin;
+        this.preview = onlyFor != null;
         this.bird = bird;
         this.var = bird.variants.get(Math.max(0, Math.min(bird.variants.size() - 1, variant)));
         this.sizeBlocks = sizeBlocks;
@@ -126,7 +132,7 @@ final class BirdVisual implements SkinVisual {
                 isHead = true;
                 d = at.getWorld().spawn(spawnAt, ItemDisplay.class, e -> {
                     e.setItemStack(headItem);
-                    e.setItemDisplayTransform(headTransform);
+                    e.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
                     this.setup(e, viewRange, false);
                     if (onlyFor != null) {
                         e.setVisibleByDefault(false);
@@ -299,11 +305,19 @@ final class BirdVisual implements SkinVisual {
 
     /** Превью в меню: птица на месте, крутится и машет. */
     void pose(Location at, double yaw, double shrink, double throttle, double pitchDeg, double bankDeg, boolean flying) {
-        double dt = this.tickDt();
+        double dt = 0.05; // Меню обновляется раз в серверный тик.
+        if (!this.poseInitialized) {
+            this.previewYaw = yaw;
+            this.perchS = flying ? 0 : 1;
+            this.poseInitialized = true;
+        }
+        this.previewYaw += wrap(yaw - this.previewYaw) * 0.25;
+        this.previewPitch += (pitchDeg - this.previewPitch) * 0.25;
+        this.previewBank += (bankDeg - this.previewBank) * 0.25;
         double target = flying ? 0.0 : 1.0;
         this.perchS += (target - this.perchS) * Math.min(1.0, dt * 6.0);
-        Quaternionf orient = new Quaternionf().rotateY((float) yaw);
-        this.apply(at, orient, this.sizeBlocks / this.bird.len * shrink, dt, throttle, pitchDeg, bankDeg, this.perchS, false);
+        Quaternionf orient = new Quaternionf().rotateY((float) this.previewYaw);
+        this.apply(at, orient, this.sizeBlocks / this.bird.len * shrink, dt, throttle, this.previewPitch, this.previewBank, this.perchS, false);
     }
 
     private static double wrap(double a) {
@@ -372,7 +386,7 @@ final class BirdVisual implements SkinVisual {
         this.feS += (feT - this.feS) * Math.min(1.0, dt * 5.0);
         double fe = this.feS;
         double moving = ("hover".equals(style) || "pulse".equals(style) || fe > 0.05 || perch < 0.5) ? 1.0 : 0.15;
-        this.ph += dt * 2 * Math.PI * Math.min(a.hz * (0.7 + 0.5 * thr), maxFlapHz) * moving;
+        this.ph += dt * 2 * Math.PI * Math.min(a.hz * (0.7 + 0.5 * thr), this.preview ? Math.min(2.0, maxFlapHz) : maxFlapHz) * moving;
         double sp = Math.sin(this.ph);
         double bk = bankDeg / 40.0;
 
@@ -514,7 +528,7 @@ final class BirdVisual implements SkinVisual {
                 float h = (float) headSize;
                 size = new Vector3f(x.s.x * sz[0] / h, x.s.y * sz[1] / h, x.s.z * sz[2] / h);
                 q = new Quaternionf(x.q).rotateY((float) (headYawDeg * D2R));
-                pos = new Vector3f(x.p).add(q.transform(new Vector3f(0, (float) (headOffsetY * h) * size.y, 0)));
+                pos = centeredHead(x.p, q, size, (float) (headOffsetY * h));
             } else {
                 size = new Vector3f(x.s.x * Math.max(0.05F, sz[0]), x.s.y * Math.max(0.05F, sz[1]), x.s.z * Math.max(0.05F, sz[2]));
                 q = new Quaternionf(x.q);
@@ -522,12 +536,18 @@ final class BirdVisual implements SkinVisual {
                 pos = new Vector3f(x.p).sub(q.transform(new Vector3f(size).mul(0.5F)));
             }
             part.display.setInterpolationDelay(0);
-            part.display.setInterpolationDuration(smoothTicks);
+            // Поза меняется каждый тик: длинная интерполяция отрывает концы крыльев от шарниров.
+            part.display.setInterpolationDuration(1);
             part.display.setTransformation(new Transformation(pos, q, size, noRot));
         }
-        if (this.rootEntity.isValid()) {
+        if (this.rootEntity.isValid() && this.rootEntity.getLocation().distanceSquared(loc) > 1.0E-8) {
             this.rootEntity.teleport(loc, io.papermc.paper.entity.TeleportFlag.EntityState.RETAIN_PASSENGERS);
         }
+    }
+
+    /** NONE: центр ванильной головы расположен на Y=-0.25 относительно item_display. */
+    static Vector3f centeredHead(Vector3f pivot, Quaternionf rotation, Vector3f scale, float offset) {
+        return new Vector3f(pivot).add(rotation.transform(new Vector3f(0, (0.25F + offset) * scale.y, 0)));
     }
 
     /** Положение, поворот и размер узла в координатах модели (блоки). */

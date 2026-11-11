@@ -116,6 +116,11 @@ public final class ProtocolRegression {
         var state = new ru.fpvdrone.flight.DroneState();
         state.levelMode = true;
         byte[] data = ru.fpvdrone.net.DroneProtocol.encodeState(state, new ru.fpvdrone.damage.DroneDamage(), 25);
+        check((data[1] & 32) == 0, "player view keeps own model visible");
+        byte[] droneView = ru.fpvdrone.net.DroneProtocol.encodeState(state,
+            new ru.fpvdrone.damage.DroneDamage(), 25, true);
+        check((droneView[1] & 32) != 0 && RemoteState.decode(droneView).viewingDrone,
+            "drone view hides own model on Fabric");
         check((data[1] & 24) == 24, "report Level to server");
         byte[] config = ru.fpvdrone.net.DroneProtocol.encodeConfig(128);
         for (int policy = 0; policy <= 2; policy++) {

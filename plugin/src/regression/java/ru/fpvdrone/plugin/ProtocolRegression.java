@@ -5,13 +5,17 @@ import java.util.Arrays;
 
 /** Standalone regression checks; no game server or test framework required. */
 public final class ProtocolRegression {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         byte[] packet = ByteBuffer.allocate(64).put((byte) 1).put((byte) 3)
             .putDouble(10).putDouble(64).putDouble(-3)
             .putFloat(0).putFloat(0).putFloat(0).putFloat(1)
             .putFloat(30).putFloat(0.5F).putFloat(5)
             .put(new byte[] {100,100,100,100,100,100,100,100,100,100}).array();
         DroneState state = DroneState.decode(packet);
+        check(!state.viewingDrone, "old client keeps own model visible");
+        byte[] viewed = packet.clone();
+        viewed[1] |= 32;
+        check(DroneState.decode(viewed).viewingDrone, "camera flag decoded");
         check(state != null && state.active && state.armed && state.x == 10 && state.qw == 1, "valid state");
         for (int length = 0; length < packet.length; length++) {
             check(DroneState.decode(Arrays.copyOf(packet, length)) == null, "truncated state " + length);
@@ -62,7 +66,30 @@ public final class ProtocolRegression {
         check(fixed.length == 27 && fixed[5] == 2 && fixed[26] == 0
             && ByteBuffer.wrap(fixed, 6, 4).getFloat() == 4,
             "fixed damage and range payload");
-        System.out.println("Protocol and pose regressions passed");
+        BirdData.Root birds = BirdData.load(ProtocolRegression.class.getClassLoader());
+        int count = 0;
+        for (BirdData.Bird bird : birds.birds) {
+            for (BirdData.Variant variant : bird.variants) {
+                verifyHeadCenters(variant.rig);
+                count++;
+            }
+        }
+        System.out.println("Protocol and pose regressions passed; bird variants: " + count);
+    }
+
+    private static void verifyHeadCenters(BirdData.Node node) {
+        if (node.mesh != null && "head".equals(node.mesh.kind)) {
+            var pivot = new org.joml.Vector3f(node.p);
+            var size = new org.joml.Vector3f(node.mesh.size).mul(2F);
+            for (int i = 0; i < 12; i++) {
+                var q = new org.joml.Quaternionf().rotationXYZ(i * 0.31F, i * 0.57F, i * 0.83F);
+                var translation = BirdVisual.centeredHead(pivot, q, size, 0);
+                // Фактический центр player_head после ванильного преобразования NONE.
+                var renderedCenter = q.transform(new org.joml.Vector3f(0, -0.25F * size.y, 0)).add(translation);
+                check(renderedCenter.distance(pivot) < 0.0001F, "head must stay at rig pivot after rotation");
+            }
+        }
+        if (node.c != null) for (BirdData.Node child : node.c) verifyHeadCenters(child);
     }
 
     private static void check(boolean condition, String message) {

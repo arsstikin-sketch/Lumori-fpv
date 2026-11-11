@@ -13,6 +13,7 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.joml.Vector3f;
+import org.joml.Quaternionf;
 import ru.fpvdrone.DroneSettings;
 import ru.fpvdrone.damage.DamageModel;
 import ru.fpvdrone.damage.DroneDamage;
@@ -53,15 +54,31 @@ public final class DronePhysics {
         double thrust = 0.0;
         Vector3f up = s.thrustDirection.set(0, 1, 0);
         if (s.spectatorMode && s.armed) {
-            // Velocity controller with bounded acceleration; collision and range checks below still apply.
+            // Плавный разгон: цель скорости и ускорение сглаживаются отдельно.
             double desiredX = s.spectatorWishX * 10.0;
             double desiredY = s.spectatorWishY * 10.0;
             double desiredZ = s.spectatorWishZ * 10.0;
-            double diffX = desiredX - s.vx, diffY = desiredY - s.vy, diffZ = desiredZ - s.vz;
-            double diff = Math.sqrt(diffX * diffX + diffY * diffY + diffZ * diffZ);
-            double step = 20.0 * dt;
-            double k = diff > step ? step / diff : 1.0;
-            s.vx += diffX * k; s.vy += diffY * k; s.vz += diffZ * k;
+            double ax = (desiredX - s.vx) / 0.85;
+            double ay = (desiredY - s.vy) / 0.85;
+            double az = (desiredZ - s.vz) / 0.85;
+            double a = Math.sqrt(ax * ax + ay * ay + az * az);
+            if (a > 9.0) { ax *= 9.0 / a; ay *= 9.0 / a; az *= 9.0 / a; }
+            double smooth = 1.0 - Math.exp(-dt / 0.18);
+            s.spectatorAccelX += (ax - s.spectatorAccelX) * smooth;
+            s.spectatorAccelY += (ay - s.spectatorAccelY) * smooth;
+            s.spectatorAccelZ += (az - s.spectatorAccelZ) * smooth;
+            s.vx += s.spectatorAccelX * dt;
+            s.vy += s.spectatorAccelY * dt;
+            s.vz += s.spectatorAccelZ * dt;
+            // Локальное ускорение задаёт наклон. Взгляд управляет курсом независимо от крена.
+            double sin = Math.sin(s.spectatorLookYaw), cos = Math.cos(s.spectatorLookYaw);
+            double forward = s.spectatorAccelX * sin + s.spectatorAccelZ * cos;
+            double sideways = -s.spectatorAccelX * cos + s.spectatorAccelZ * sin;
+            float pitch = (float) Math.max(-0.28, Math.min(0.28, forward / 25.0));
+            float roll = (float) Math.max(-0.38, Math.min(0.38, sideways / 20.0));
+            Quaternionf target = new Quaternionf().rotateY((float) s.spectatorLookYaw)
+                .rotateX((float) s.spectatorLookPitch + pitch).rotateZ(roll);
+            s.orientation.slerp(target, (float) (1.0 - Math.exp(-dt / 0.16))).normalize();
             s.motor += (0.5F - s.motor) * (float) (1.0 - Math.exp(-dt / cfg.motorResponse));
             s.rollRate = s.pitchRate = s.yawRate = 0;
         } else {

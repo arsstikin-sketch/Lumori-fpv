@@ -351,25 +351,36 @@ final class SkinMenu {
     // ------------------------------------------------------------------ птицы в карусели
 
     private void refreshBirds(int delta, int n, int cursor) {
+        BirdVisual[] previous = this.birdSlots.clone();
+        SkinCatalog.Variant[] variants = this.birdSlotVariant.clone();
+        double[] offsets = this.birdSlotOffset.clone();
+        java.util.Arrays.fill(this.birdSlots, null);
+        java.util.Arrays.fill(this.birdSlotVariant, null);
         for (int i = 0; i < 5; i++) {
             int offset = i - 2;
             SkinCatalog.Variant v = visible(offset, n) ? this.variantAt(Math.floorMod(cursor + offset, n)) : null;
-            if (v == null || v.mob.bird == null) {
-                this.removeBird(i);
-                continue;
-            }
+            if (v == null || v.mob.bird == null) continue;
             double from = delta == 0 ? offset : Math.max(-3.0, Math.min(3.0, offset + delta));
-            if (this.birdSlotVariant[i] != v || this.birdSlots[i] == null || !this.birdSlots[i].isValid()) {
-                this.removeBird(i);
+            // Переносим саму модель между слотами: фаза взмахов и загруженные головы сохраняются.
+            for (int j = 0; j < previous.length; j++) {
+                if (variants[j] == v && previous[j] != null && previous[j].isValid()) {
+                    this.birdSlots[i] = previous[j];
+                    from = offsets[j];
+                    previous[j] = null;
+                    break;
+                }
+            }
+            if (this.birdSlots[i] == null) {
                 double[] p = this.mobPoint(from);
                 BirdData.Bird b = v.mob.bird;
                 double fit = this.mobSize(v, 0.0) * b.len / Math.max(b.len, b.span);
                 this.birdSlots[i] = new BirdVisual(this.plugin, this.plugin.birdHeads(), new Location(this.world, p[0], p[1], p[2]),
                     b, v.birdVariant, fit, null, this.player, 32.0F, true);
-                this.birdSlotVariant[i] = v;
             }
+            this.birdSlotVariant[i] = v;
             this.birdSlotOffset[i] = from;
         }
+        for (BirdVisual bird : previous) if (bird != null) bird.remove();
     }
 
     private void removeBird(int i) {
@@ -397,7 +408,7 @@ final class SkinMenu {
             double[] p = this.mobPoint(cur);
             double a = Math.abs(cur);
             double shrink = Math.max(0.35, 1.0 - a * 0.25);
-            Location at = new Location(this.world, p[0], p[1] - (i == 2 ? 0.0 : 0.15), p[2]);
+            Location at = new Location(this.world, p[0], p[1] - Math.min(1.0, Math.abs(cur)) * 0.15, p[2]);
             if (i == 2) {
                 double spin = Math.toRadians(this.tick * 2.0);
                 double bank = Math.sin(this.tick * 0.06) * 30.0;

@@ -84,7 +84,7 @@ public final class DroneSettingsScreen extends Screen {
         List<Entry> entries = this.entries(this.tab);
         int colW = Math.min(200, (this.width - 30) / 2);
         int top = 48;
-        int bottomReserve = this.tab == Tab.CONTROL || this.tab == Tab.CONTROLLER ? 155 : 34;
+        int bottomReserve = this.tab == Tab.CONTROL || this.tab == Tab.CONTROLLER ? ControlDiagram.reservedHeight(this.width, this.height) : 34;
         int rows = Math.max(1, (this.height - top - bottomReserve) / 24);
         int perPage = rows * 2;
         int pages = Math.max(1, (entries.size() + perPage - 1) / perPage);

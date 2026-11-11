@@ -240,7 +240,9 @@ public final class DroneServer {
 
     public static boolean isHiddenFrom(Entity entity, ServerPlayer player) {
         UUID owner = PART_OWNERS.get(entity);
-        return owner != null && owner.equals(player.getUUID());
+        if (owner == null || !owner.equals(player.getUUID())) return false;
+        Session session = SESSIONS.get(owner);
+        return session != null && session.state != null && session.state.viewingDrone;
     }
 
     // ------------------------------------------------------------------ config/fpvdrone-server.properties

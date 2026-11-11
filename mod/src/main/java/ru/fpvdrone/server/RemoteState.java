@@ -15,6 +15,7 @@ public final class RemoteState {
     public boolean active;
     public boolean armed;
     public boolean crashed;
+    public boolean viewingDrone;
     public double x;
     public double y;
     public double z;
@@ -48,6 +49,7 @@ public final class RemoteState {
             s.active = (flags & FLAG_ACTIVE) != 0;
             s.armed = (flags & FLAG_ARMED) != 0;
             s.crashed = (flags & FLAG_CRASHED) != 0;
+            s.viewingDrone = (flags & 32) != 0;
             if (!s.active) {
                 return s;
             }

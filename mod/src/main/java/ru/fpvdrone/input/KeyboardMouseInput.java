@@ -57,7 +57,8 @@ public final class KeyboardMouseInput {
         clearMouse();
         float yaw = (float) lookYaw;
         float pitch = (float) lookPitch;
-        state.orientation.rotationY(yaw).rotateX(pitch);
+        state.spectatorLookYaw = yaw;
+        state.spectatorLookPitch = pitch;
         double f = (forward ? 1 : 0) - (back ? 1 : 0);
         double side = (right ? 1 : 0) - (left ? 1 : 0);
         double vertical = (jump ? 1 : 0) - (sneak ? 1 : 0);

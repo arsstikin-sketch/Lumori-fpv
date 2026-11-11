@@ -10,7 +10,7 @@ import ru.fpvdrone.flight.DroneState;
  *
  * state (клиент -> сервер), версия 1:
  *   byte  version = 1
- *   byte  flags   (1 = в полёте, 2 = армлен, 4 = разбит, 8 = Level, 16 = режим сообщён)
+ *   byte  flags   (1 = активен, 2 = армлен, 4 = разбит, 8 = Level, 16 = режим сообщён, 32 = камера в дроне)
  *   -- дальше только если флаг 1 --
  *   double x, y, z          позиция дрона
  *   float  qx, qy, qz, qw   ориентация (локальные оси: +Z вперёд, +Y вверх, +X влево)
@@ -35,6 +35,7 @@ public final class DroneProtocol {
     public static final int FLAG_ACTIVE = 1;
     public static final int FLAG_ARMED = 2;
     public static final int FLAG_CRASHED = 4;
+    public static final int FLAG_DRONE_VIEW = 32;
 
     private DroneProtocol() {
     }
@@ -44,8 +45,12 @@ public final class DroneProtocol {
     }
 
     public static byte[] encodeState(DroneState state, DroneDamage damage, float cameraAngle) {
+        return encodeState(state, damage, cameraAngle, false);
+    }
+
+    public static byte[] encodeState(DroneState state, DroneDamage damage, float cameraAngle, boolean viewingDrone) {
         ByteBuffer buf = ByteBuffer.allocate(64);
-        int flags = FLAG_ACTIVE | 16 | (state.levelMode ? 8 : 0);
+        int flags = FLAG_ACTIVE | 16 | (state.levelMode ? 8 : 0) | (viewingDrone ? FLAG_DRONE_VIEW : 0);
         if (state.armed) {
             flags |= FLAG_ARMED;
         }

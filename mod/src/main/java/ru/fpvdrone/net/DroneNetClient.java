@@ -84,7 +84,8 @@ public final class DroneNetClient {
         DroneController controller = FpvDroneClient.CONTROLLER;
         boolean active = controller.isActive();
         if (active) {
-            byte[] data = DroneProtocol.encodeState(controller.state, controller.damage, FpvDroneClient.SETTINGS.cameraAngle);
+            byte[] data = DroneProtocol.encodeState(controller.state, controller.damage,
+                FpvDroneClient.SETTINGS.cameraAngle, controller.isViewingDrone());
             ClientPlayNetworking.send(new DronePayloads.State(data));
         } else if (wasActive) {
             ClientPlayNetworking.send(new DronePayloads.State(DroneProtocol.encodeInactive()));
