@@ -66,6 +66,10 @@ public final class ProtocolRegression {
         check(fixed.length == 27 && fixed[5] == 2 && fixed[26] == 0
             && ByteBuffer.wrap(fixed, 6, 4).getFloat() == 4,
             "fixed damage and range payload");
+        var gate = new org.bukkit.util.BoundingBox(0,0,0,1,2,3);
+        check(Math.abs(DroneRaces.entryFraction(gate,new org.bukkit.util.Vector(-5,1,1),new org.bukkit.util.Vector(5,1,1))-.5)<1e-8,"fast drone crossing a thin gate");
+        check(Double.isNaN(DroneRaces.entryFraction(gate,new org.bukkit.util.Vector(-5,4,1),new org.bukkit.util.Vector(5,4,1))),"missing the gate must not count");
+        check(Double.isNaN(DroneRaces.entryFraction(gate,new org.bukkit.util.Vector(.5,1,1),new org.bukkit.util.Vector(.6,1,1))),"standing inside must not retrigger");
         BirdData.Root birds = BirdData.load(ProtocolRegression.class.getClassLoader());
         int count = 0;
         for (BirdData.Bird bird : birds.birds) {

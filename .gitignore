@@ -1,4 +1,5 @@
 # Gradle / сборка
+.integration-admin/
 .gradle/
 build/
 out/

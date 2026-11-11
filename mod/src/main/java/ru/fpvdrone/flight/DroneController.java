@@ -128,27 +128,28 @@ public final class DroneController {
             this.state.armed = false;
         }
         this.keyboardMode = useKeyboard;
+        this.state.keyboardControl = useKeyboard;
         this.lastKeyboardScheme = cfg.keyboardScheme;
         this.state.keyboardSmartSteering = useKeyboard && cfg.keyboardScheme == DroneSettings.KeyboardScheme.KEYBOARD_ASSIST;
         this.state.spectatorMode = useKeyboard && cfg.keyboardScheme == DroneSettings.KeyboardScheme.SPECTATOR;
         boolean controls = this.isViewingDrone() && minecraft.gui.screen() == null && minecraft.isWindowActive();
         if (useKeyboard) {
-            if (!controls) this.keyboard.reset();
+            if (!controls) this.keyboard.clearMouse();
             this.sticks = this.keyboard.sample(inputDt,
-                controls && minecraft.options.keyUp.isDown(), controls && minecraft.options.keyDown.isDown(),
-                controls && minecraft.options.keyLeft.isDown(), controls && minecraft.options.keyRight.isDown(),
-                controls && minecraft.options.keyJump.isDown(), controls && minecraft.options.keyShift.isDown(),
+                controls && isDown(minecraft.options.keyUp), controls && isDown(minecraft.options.keyDown),
+                controls && isDown(minecraft.options.keyLeft), controls && isDown(minecraft.options.keyRight),
+                controls && isDown(minecraft.options.keyJump), controls && isDown(minecraft.options.keyShift),
                 cfg.keyboardThrottleSpeed, cfg.mouseSensitivity, cfg.invertMousePitch,
-                cfg.keyboardScheme, this.state.speed());
-            if (this.state.spectatorMode && controls) {
+                cfg.keyboardScheme, this.state.speed(), cfg.keyboardSmoothing);
+            if (this.state.spectatorMode) {
                 this.keyboard.spectator(this.state,
-                    minecraft.options.keyUp.isDown(), minecraft.options.keyDown.isDown(),
-                    minecraft.options.keyLeft.isDown(), minecraft.options.keyRight.isDown(),
-                    minecraft.options.keyJump.isDown(), minecraft.options.keyShift.isDown(),
+                    controls && isDown(minecraft.options.keyUp), controls && isDown(minecraft.options.keyDown),
+                    controls && isDown(minecraft.options.keyLeft), controls && isDown(minecraft.options.keyRight),
+                    controls && isDown(minecraft.options.keyJump), controls && isDown(minecraft.options.keyShift),
                     cfg.mouseSensitivity, cfg.invertMousePitch);
             }
         }
-        if (this.isViewingDrone() && (!controls || !this.sticks.connected())) {
+        if (this.isViewingDrone() && (!minecraft.isWindowActive() || !this.sticks.connected())) {
             this.state.armed = false;
             this.keyboard.reset();
         }
@@ -230,6 +231,17 @@ public final class DroneController {
 
     private void handleInputs(Minecraft minecraft, LocalPlayer player, DroneSettings cfg) {
         boolean screenOpen = minecraft.gui.screen() != null || !minecraft.isWindowActive();
+        if (screenOpen) {
+            // Поглощаем действия в меню, сохраняя арм и положение газа.
+            this.armKeyPrev = isDown(ModKeys.ARM);
+            this.exitKeyPrev = isDown(ModKeys.EXIT);
+            this.respawnKeyPrev = isDown(ModKeys.RESPAWN);
+            this.viewKeyPrev = isDown(ModKeys.VIEW);
+            this.modeKeyPrev = isDown(ModKeys.STABILIZATION);
+            this.armSwitchPrev = this.sticks.armSwitch();
+            this.exitSwitchPrev = this.sticks.exitSwitch();
+            return;
+        }
 
         boolean modeKey = !screenOpen && isDown(ModKeys.STABILIZATION);
         if (modeKey && !this.modeKeyPrev) {
@@ -301,7 +313,7 @@ public final class DroneController {
     }
 
     private static boolean isDown(KeyMapping key) {
-        return key != null && key.isDown();
+        return key != null && (key.isDown() || ru.fpvdrone.input.ActionButtons.isDown(key));
     }
 
     /** Переключение камеры: игрок ↔ дрон. Дрон при этом остаётся в мире. */

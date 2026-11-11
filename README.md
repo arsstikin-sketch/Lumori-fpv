@@ -34,3 +34,7 @@ JAR появятся в `mod/build/libs/` и `plugin/build/libs/`. На Linux/ma
 В `plugins/FpvDrone/config.yml` параметр `max-range: 0` разрешает игроку выбрать дальность от 8 до 512 блоков; положительное число фиксирует её. В разделе `damage` значения `durability`, `safe-contact`, `propeller-break`, `motor-break`, `frame-destroy` равны 0 для выбора игроком или положительному числу для фиксированного значения. `damage.liquids-destroy` принимает `client`, `true`, `false`. Фиксированный сервером ползунок или переключатель в моде показывает действующее значение и блокируется. `stabilization.allowed` принимает `All`, `Acro`, `Level`. Изменения конфигурации применяются через `/drone reload`.
 
 `/flyskin` открывает выбор птиц и мобов; `/flyskin admin` открывает панель доступности и размеров скинов; `/flyskin enable <id>` и `/flyskin disable <id>` работают без панели. Подробности — в [документации плагина](plugin/README.md), история изменений — в [CHANGELOG.md](CHANGELOG.md).
+
+## Трассы и управление
+
+Создание ворот, прохождение трасс на время, рекорды и назначение клавиш/кнопок описаны в [инструкции](docs/racing-and-bindings.md).

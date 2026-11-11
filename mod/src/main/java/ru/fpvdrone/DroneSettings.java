@@ -31,6 +31,8 @@ public final class DroneSettings {
     public float mouseSensitivity = 1.0F;
     public boolean invertMousePitch = false;
     public float keyboardThrottleSpeed = 0.35F;
+    /** Сглаживание клавиш и мыши, независимо от пульта. */
+    public float keyboardSmoothing = 0.35F;
     public float levelMaxAngle = 45.0F;
 
     public String controllerName = "";
@@ -306,6 +308,7 @@ public final class DroneSettings {
         }
         this.mouseSensitivity = clamp(this.mouseSensitivity, 0.1F, 5.0F);
         this.keyboardThrottleSpeed = clamp(this.keyboardThrottleSpeed, 0.05F, 2.0F);
+        this.keyboardSmoothing = clamp(this.keyboardSmoothing, 0.0F, 1.0F);
         this.levelMaxAngle = clamp(this.levelMaxAngle, 10.0F, 70.0F);
         this.rcRateRollPitch = clamp(this.rcRateRollPitch, 0.1F, 2.55F);
         this.superRateRollPitch = clamp(this.superRateRollPitch, 0.0F, 0.95F);

@@ -35,6 +35,8 @@ public final class PaperSmoke extends JavaPlugin {
                 return switch (method.getName()) {
                     case "getUniqueId" -> new UUID(0, 123);
                     case "hasPermission", "isOnline" -> true;
+                    case "isDead", "isSleeping" -> false;
+                    case "getGameMode" -> GameMode.CREATIVE;
                     case "openInventory" -> { windows++; getLogger().info("WINDOW OK: " + ((Inventory) args[0]).getSize()); yield null; }
                     case "sendMessage" -> { getLogger().warning("PLAYER MESSAGE: " + Arrays.toString(args)); yield null; }
                     case "getName" -> "SmokePlayer";
@@ -68,6 +70,16 @@ public final class PaperSmoke extends JavaPlugin {
                 if ((boolean) call(panel, "enabled", bee)) throw new IllegalStateException("Admin toggle did not disable bee");
                 call(panel, "setEnabled", bee, true);
                 getLogger().info("NATIVE ADMIN CLICK OK");
+                nativePlayer.closeInventory();
+                var blocker = new org.bukkit.event.Listener() {};
+                Bukkit.getPluginManager().registerEvent(org.bukkit.event.inventory.InventoryOpenEvent.class, blocker,
+                    org.bukkit.event.EventPriority.NORMAL, (listener,event)->((org.bukkit.event.inventory.InventoryOpenEvent)event).setCancelled(true), this);
+                Bukkit.dispatchCommand(nativePlayer, "fpvdrone:flyskin admin");
+                if(nativePlayer.getOpenInventory().getTopInventory().getSize()==54) throw new IllegalStateException("Cancelled event must stay cancelled");
+                org.bukkit.event.HandlerList.unregisterAll(blocker);
+                Bukkit.dispatchCommand(nativePlayer, "fpvdrone:flyskin admin");
+                if(nativePlayer.getOpenInventory().getTopInventory().getSize()!=54) throw new IllegalStateException("Panel did not recover after cancellation");
+                getLogger().info("CANCELLED OPEN AND RECOVERY OK");
                 nativePlayer.closeInventory();
                 Bukkit.dispatchCommand(nativePlayer, "fpvdrone:flyskin set phantom");
                 Bukkit.dispatchCommand(nativePlayer, "fpvdrone:flyskin");

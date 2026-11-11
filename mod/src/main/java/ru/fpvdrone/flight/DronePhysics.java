@@ -83,7 +83,8 @@ public final class DronePhysics {
             s.rollRate = s.pitchRate = s.yawRate = 0;
         } else {
         // ---------------- плавность управления: сглаживание стиков
-        float smooth = cfg.controlSmoothing <= 0.001F ? 1.0F : (float) (1.0 - Math.exp(-dt / (cfg.controlSmoothing * 0.15)));
+        float tau = Math.max(cfg.controlSmoothing * 0.15F, s.keyboardControl ? cfg.keyboardSmoothing * 0.28F : 0.0F);
+        float smooth = tau <= 0.001F ? 1.0F : (float) (1.0 - Math.exp(-dt / tau));
         s.smoothRoll += (sticks.roll() - s.smoothRoll) * smooth;
         s.smoothPitch += (sticks.pitch() - s.smoothPitch) * smooth;
         s.smoothYaw += (sticks.yaw() - s.smoothYaw) * smooth;

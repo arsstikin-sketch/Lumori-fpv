@@ -148,6 +148,32 @@ final class AdminPanel implements Listener {
         return out;
     }
 
+    private final java.util.Map<java.util.UUID, String> openDiagnostics = new java.util.HashMap<>();
+
+    @org.bukkit.event.EventHandler(priority = org.bukkit.event.EventPriority.MONITOR)
+    public void diagnoseOpen(org.bukkit.event.inventory.InventoryOpenEvent event) {
+        if (event.getInventory().getHolder(false) instanceof Holder) {
+            openDiagnostics.put(event.getPlayer().getUniqueId(), event.isCancelled() ? "InventoryOpenEvent отменён" : "InventoryOpenEvent разрешён");
+        }
+    }
+
+    private void chatPanel(Player player, int page, java.util.List<SkinCatalog.Mob> all) {
+        player.sendMessage(Component.text("Панель в чате — нажмите на скин, чтобы изменить доступность:", NamedTextColor.GOLD));
+        int start = page * PER_PAGE;
+        for (int i = start; i < Math.min(all.size(), start + PER_PAGE); i++) {
+            var mob = all.get(i);
+            boolean enabled = this.enabled(mob);
+            player.sendMessage(Component.text((enabled ? "[ВКЛ] " : "[ВЫКЛ] ") + mob.name,
+                enabled ? NamedTextColor.GREEN : NamedTextColor.RED)
+                .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/fpvdrone:flyskin "
+                    + (enabled ? "disable " : "enable ") + mob.id)));
+        }
+        if (page > 0) player.sendMessage(Component.text("◀ Предыдущая страница").clickEvent(
+            net.kyori.adventure.text.event.ClickEvent.runCommand("/fpvdrone:flyskin admin " + page)));
+        if (start + PER_PAGE < all.size()) player.sendMessage(Component.text("Следующая страница ▶").clickEvent(
+            net.kyori.adventure.text.event.ClickEvent.runCommand("/fpvdrone:flyskin admin " + (page + 2))));
+    }
+
     void open(Player player, int page, Filter filter) {
         if (!player.hasPermission("fpvdrone.admin")) {
             player.sendMessage(Component.text("Нет прав fpvdrone.admin", NamedTextColor.RED));
@@ -200,11 +226,18 @@ final class AdminPanel implements Listener {
             "у кого такой был — летает скин по умолчанию."));
         inv.setItem(50, button(Material.GRAY_DYE, "Выключить все в разделе", "Скин по умолчанию выключить нельзя"));
         inv.setItem(53, button(Material.ARROW, "Вперёд ▶", page < pages - 1 ? "Страница " + (page + 2) : "Это последняя страница"));
-        if (player.openInventory(inv) == null) {
-            player.sendMessage(Component.text("Сервер отклонил открытие панели. Подробности в консоли. "
-                + "Пока доступны /fpvdrone:flyskin enable <скин> и /fpvdrone:flyskin disable <скин>.", NamedTextColor.RED));
-            this.plugin.getLogger().warning("openInventory вернул null для " + player.getName()
-                + ": проверьте отмену InventoryOpenEvent и ограничения открытия инвентарей.");
+        this.openDiagnostics.remove(player.getUniqueId());
+        var opened = player.openInventory(inv);
+        String eventStatus = this.openDiagnostics.remove(player.getUniqueId());
+        if (opened == null) {
+            String handlers = java.util.Arrays.stream(org.bukkit.event.inventory.InventoryOpenEvent.getHandlerList().getRegisteredListeners())
+                .map(listener -> listener.getPlugin().getName()).distinct().sorted().collect(java.util.stream.Collectors.joining(", "));
+            String reason = eventStatus == null ? "InventoryOpenEvent не вызван" : eventStatus;
+            player.sendMessage(Component.text("Окно панели не открылось: " + reason + ". Ниже доступно управление в чате.", NamedTextColor.YELLOW));
+            this.plugin.getLogger().warning("Админ-панель " + player.getName() + ": " + reason
+                + "; dead=" + player.isDead() + "; sleeping=" + player.isSleeping() + "; mode=" + player.getGameMode()
+                + "; обработчики InventoryOpenEvent (не обязательно причина отказа): " + handlers);
+            this.chatPanel(player, page, all);
             return;
         }
         this.plugin.getServer().getScheduler().runTask(this.plugin, () -> {

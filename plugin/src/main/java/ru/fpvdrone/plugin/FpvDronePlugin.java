@@ -33,6 +33,7 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
 
     private final Map<UUID, PilotSession> sessions = new HashMap<>();
     private TestDrone testDrone;
+    private DroneRaces races;
     private long tick;
 
     // Настройки из config.yml
@@ -98,6 +99,10 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
         this.getServer().getPluginManager().registerEvents(this.skinMenus, this);
         this.getServer().getPluginManager().registerEvents(this.adminPanel, this);
 
+        this.races = new DroneRaces(this);
+        this.getServer().getPluginManager().registerEvents(this.races, this);
+        this.getCommand("dronerace").setExecutor(this.races);
+        this.getCommand("dronerace").setTabCompleter(this.races);
         DroneCommand command = new DroneCommand(this);
         PluginCommand drone = this.getCommand("drone");
         if (drone != null) {
@@ -638,6 +643,7 @@ public final class FpvDronePlugin extends JavaPlugin implements Listener, Plugin
             this.doRefreshBirdVisuals();
         }
         this.skinMenus.tick();
+        this.races.tick();
         if (this.testDrone != null && !this.testDrone.tick()) {
             this.testDrone.remove();
             this.testDrone = null;

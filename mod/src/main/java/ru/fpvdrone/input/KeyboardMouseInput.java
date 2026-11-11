@@ -6,6 +6,7 @@ import ru.fpvdrone.DroneSettings;
 public final class KeyboardMouseInput {
     private double dx, dy;
     private float throttle;
+    private float filteredMouseX, filteredMouseY;
     private double lookYaw, lookPitch;
     private boolean lookInitialized;
 
@@ -16,6 +17,13 @@ public final class KeyboardMouseInput {
     public StickInput.Sticks sample(double dt, boolean forward, boolean back, boolean left, boolean right,
                                     boolean jump, boolean sneak, float throttleSpeed, float sensitivity,
                                     boolean invertPitch, DroneSettings.KeyboardScheme scheme, double speed) {
+        return sample(dt, forward, back, left, right, jump, sneak, throttleSpeed, sensitivity,
+            invertPitch, scheme, speed, 0.0F);
+    }
+
+    public StickInput.Sticks sample(double dt, boolean forward, boolean back, boolean left, boolean right,
+                                    boolean jump, boolean sneak, float throttleSpeed, float sensitivity,
+                                    boolean invertPitch, DroneSettings.KeyboardScheme scheme, double speed, float keyboardSmoothing) {
         dt = Math.max(0.001, Math.min(0.1, dt));
         boolean assist = scheme == DroneSettings.KeyboardScheme.KEYBOARD_ASSIST;
         if (scheme == DroneSettings.KeyboardScheme.SPECTATOR) {
@@ -24,8 +32,13 @@ public final class KeyboardMouseInput {
             throttle = clamp(throttle + (float) dt * throttleSpeed *
                 (((assist ? jump : forward) ? 1 : 0) - ((assist ? sneak : back) ? 1 : 0)), 0, 1);
         }
-        float mouseX = clamp((float) (dx / dt * 0.003 * sensitivity), -1, 1);
-        float mouseY = clamp((float) (dy / dt * 0.003 * sensitivity) * (invertPitch ? -1 : 1), -1, 1);
+        float rawMouseX = clamp((float) (dx / dt * 0.003 * sensitivity), -1, 1);
+        float rawMouseY = clamp((float) (dy / dt * 0.003 * sensitivity) * (invertPitch ? -1 : 1), -1, 1);
+        float tau = Math.max(0.0F, Math.min(1.0F, keyboardSmoothing)) * 0.10F;
+        float mouseBlend = tau <= 0.001F ? 1.0F : (float) (1.0 - Math.exp(-dt / tau));
+        filteredMouseX += (rawMouseX - filteredMouseX) * mouseBlend;
+        filteredMouseY += (rawMouseY - filteredMouseY) * mouseBlend;
+        float mouseX = filteredMouseX, mouseY = filteredMouseY;
         if (scheme != DroneSettings.KeyboardScheme.SPECTATOR) clearMouse();
         float turn = (right ? 1 : 0) - (left ? 1 : 0);
         return switch (scheme) {
@@ -79,6 +92,6 @@ public final class KeyboardMouseInput {
     }
 
     public void clearMouse() { dx = dy = 0; }
-    public void reset() { throttle = 0; lookInitialized = false; clearMouse(); }
+    public void reset() { throttle = 0; filteredMouseX = filteredMouseY = 0; lookInitialized = false; clearMouse(); }
     private static float clamp(float v, float min, float max) { return Math.max(min, Math.min(max, v)); }
 }

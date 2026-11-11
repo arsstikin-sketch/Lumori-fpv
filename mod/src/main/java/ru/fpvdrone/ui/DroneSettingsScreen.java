@@ -133,8 +133,8 @@ public final class DroneSettingsScreen extends Screen {
             case CONTROLLER -> {
                 list.add(action("Настроить пульт…", "Оси «подвигай стиком», тумблер арма, кнопка выхода, калибровка. У каждого пульта свой профиль.",
                     () -> Minecraft.getInstance().gui.setScreen(new ControllerSetupScreen(this))));
-                list.add(action("Клавиши…", "Стандартный экран клавиш Minecraft, раздел «FPV Drone». Нажми на действие, потом нужную клавишу.",
-                    () -> Minecraft.getInstance().gui.setScreen(new KeyBindsScreen(this, Minecraft.getInstance().options))));
+                list.add(action("Клавиши…", "Назначение клавиатуры и кнопок геймпада для действий дрона.",
+                    () -> Minecraft.getInstance().gui.setScreen(new ActionBindingsScreen(this))));
                 list.add(slider("Мёртвая зона (этот пульт)", "Маленькие отклонения стиков около центра игнорируются. Своя у каждого пульта.",
                     0.0F, 0.3F, 0.01F, () -> profile().deadzone, v -> {
                         profile().deadzone = v;
@@ -189,6 +189,8 @@ public final class DroneSettingsScreen extends Screen {
                     () -> c.invertMousePitch, v -> c.invertMousePitch = v));
                 list.add(slider("Скорость изменения газа", "Доля полного газа в секунду удержания W/S. Отпускание сохраняет газ.",
                     0.05F, 2.0F, 0.05F, () -> c.keyboardThrottleSpeed, v -> c.keyboardThrottleSpeed = v, DroneSettingsScreen::num));
+                list.add(slider("Плавность клавиш и мыши", "Смягчает нажатия и движения мыши. 0 = без дополнительного сглаживания; пульт не затрагивается.",
+                    0.0F, 1.0F, 0.05F, () -> c.keyboardSmoothing, v -> c.keyboardSmoothing = v, DroneSettingsScreen::pct));
                 list.add(slider("Угол наклона Level", "Предельный заданный наклон по крену и тангажу.",
                     10F, 70F, 1F, () -> c.levelMaxAngle, v -> c.levelMaxAngle = v, v -> Math.round(v) + "°"));
                 list.add(slider("Интенсивность управления", "Общий множитель скорости вращения поверх рейтов. 1 = как в рейтах.",
@@ -307,6 +309,7 @@ public final class DroneSettingsScreen extends Screen {
                 c.mouseSensitivity = d.mouseSensitivity;
                 c.invertMousePitch = d.invertMousePitch;
                 c.keyboardThrottleSpeed = d.keyboardThrottleSpeed;
+                c.keyboardSmoothing = d.keyboardSmoothing;
                 c.levelMaxAngle = d.levelMaxAngle;
                 c.controlIntensity = d.controlIntensity;
                 c.controlSmoothing = d.controlSmoothing;

@@ -6,6 +6,9 @@ description: Показывает FPV-дроны (мод FPV Freecam + fpvdrone)
 authors: [Арсений Стикин]
 
 commands:
+  dronerace:
+    description: Трассы и рекорды дронов
+    usage: /dronerace
   drone:
     description: Настройки FPV-дрона
     usage: /drone help
@@ -14,6 +17,9 @@ commands:
     usage: /flyskin
 
 permissions:
+  fpvdrone.race.admin:
+    description: Выдача выделителя и создание трасс
+    default: op
   fpvdrone.admin:
     description: /drone list, /drone reload, /flyskin reload, /flyskin admin, /flyskin heads
     default: op

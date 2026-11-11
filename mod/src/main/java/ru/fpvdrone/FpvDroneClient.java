@@ -44,7 +44,7 @@ public final class FpvDroneClient implements ClientModInitializer {
         hideDuringFlight(VanillaHudElements.FOOD_BAR);
         hideDuringFlight(VanillaHudElements.AIR_BAR);
         hideDuringFlight(VanillaHudElements.EXPERIENCE_LEVEL);
-        hideDuringFlight(VanillaHudElements.INFO_BAR);
+        // Серверный таймер гонки использует action bar: оставляем его видимым.
         hideDuringFlight(VanillaHudElements.HELD_ITEM_TOOLTIP);
 
         ClientTickEvents.END_CLIENT_TICK.register(FpvDroneClient::onEndTick);
@@ -61,14 +61,15 @@ public final class FpvDroneClient implements ClientModInitializer {
     }
 
     private static void onEndTick(Minecraft minecraft) {
+        ru.fpvdrone.input.ActionButtons.poll();
         DroneNetClient.tick(minecraft);
         SETTINGS.saveIfDirty();
-        while (ModKeys.SETTINGS.consumeClick()) {
+        if (ModKeys.SETTINGS.consumeClick() || ru.fpvdrone.input.ActionButtons.clicked(ModKeys.SETTINGS)) {
             if (minecraft.gui.screen() == null) {
                 minecraft.gui.setScreen(new DroneSettingsScreen(null));
             }
         }
-        while (ModKeys.CONTROLLER_SETUP.consumeClick()) {
+        if (ModKeys.CONTROLLER_SETUP.consumeClick() || ru.fpvdrone.input.ActionButtons.clicked(ModKeys.CONTROLLER_SETUP)) {
             if (minecraft.gui.screen() == null) {
                 minecraft.gui.setScreen(new ControllerSetupScreen(null));
             }

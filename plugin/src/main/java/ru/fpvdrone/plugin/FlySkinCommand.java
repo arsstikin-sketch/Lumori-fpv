@@ -85,7 +85,12 @@ final class FlySkinCommand implements CommandExecutor, TabCompleter {
             } else if (!sender.hasPermission(ADMIN)) {
                 sender.sendMessage(Component.text("Нет прав", NamedTextColor.RED));
             } else {
-                this.plugin.adminPanel().open(p, 0, AdminPanel.Filter.ALL);
+                int page = 0;
+                if (args.length > 1) {
+                    try { page = Math.max(0, Integer.parseInt(args[1]) - 1); }
+                    catch (NumberFormatException e) { sender.sendMessage(Component.text("Номер страницы должен быть числом")); return true; }
+                }
+                this.plugin.adminPanel().open(p, page, AdminPanel.Filter.ALL);
             }
             return true;
         }

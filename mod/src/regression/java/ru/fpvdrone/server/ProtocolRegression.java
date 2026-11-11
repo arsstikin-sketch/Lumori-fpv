@@ -44,6 +44,14 @@ public final class ProtocolRegression {
     }
 
     private static void controls() {
+        var softened = new ru.fpvdrone.input.KeyboardMouseInput();
+        softened.mouse(20, 0);
+        var first = softened.sample(.02, false, false, false, false, false, false, .35F, 1, false,
+            ru.fpvdrone.DroneSettings.KeyboardScheme.FPV_SWAPPED, 0, .35F);
+        var fading = softened.sample(.02, false, false, false, false, false, false, .35F, 1, false,
+            ru.fpvdrone.DroneSettings.KeyboardScheme.FPV_SWAPPED, 0, .35F);
+        check(first.roll() > 0 && first.roll() < 1 && fading.roll() > 0 && fading.roll() < first.roll(),
+            "mouse motion eases in and settles after release");
         var a = new ru.fpvdrone.input.KeyboardMouseInput();
         var b = new ru.fpvdrone.input.KeyboardMouseInput();
         ru.fpvdrone.input.StickInput.Sticks sa = null, sb = null;

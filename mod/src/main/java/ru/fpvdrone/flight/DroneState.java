@@ -9,6 +9,7 @@ import org.joml.Quaternionf;
 public final class DroneState {
     public boolean levelMode;
     public boolean keyboardSmartSteering;
+    public boolean keyboardControl;
     public boolean spectatorMode;
     public double spectatorWishX, spectatorWishY, spectatorWishZ;
     public double spectatorLookYaw, spectatorLookPitch;
